@@ -22,8 +22,8 @@ The system supports:
 ### 1. Clone the repository
 
 ```bash
-git clone
-cd course-management-api
+git clone https://github.com/tywaine/COMP3161_Final_Project.git
+cd COMP3161_Final_Project
 ```
 
 ### 2. Create and activate a virtual environment
