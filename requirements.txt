@@ -1,5 +1,7 @@
 Flask
+Flask-Cors
 python-dotenv
 mysql-connector-python
-Flask-HTTPAuth
 flask-jwt-extended
+Werkzeug
+Faker
