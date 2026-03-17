@@ -7,12 +7,13 @@ USE course_management;
 -- =========================
 
 CREATE TABLE Users (
-    userId INT AUTO_INCREMENT PRIMARY KEY,
-    passwordHash VARCHAR(255) NOT NULL,
+    userId INT PRIMARY KEY,
     fullName VARCHAR(150) NOT NULL,
+    passwordHash VARCHAR(255) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     role ENUM('student', 'lecturer', 'admin') NOT NULL,
-    createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (userId BETWEEN 100000000 AND 999999999)
 );
 
 CREATE TABLE Students (

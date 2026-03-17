@@ -8,4 +8,12 @@ def get_db():
         password=current_app.config["DB_PASSWORD"],
         database=current_app.config["DB_NAME"]
     )
+
     return connection
+
+
+def close_db(connection, cursor):
+    if cursor:
+        cursor.close()
+    if connection:
+        connection.close()

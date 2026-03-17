@@ -3,6 +3,8 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from .config import Config
 
+from app.routes.auth import auth_bp
+
 jwt = JWTManager()
 
 def create_app():
@@ -12,8 +14,6 @@ def create_app():
     CORS(app)
     jwt.init_app(app)
 
-    """
-
-    """
+    app.register_blueprint(auth_bp)
 
     return app
