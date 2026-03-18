@@ -30,19 +30,6 @@ COURSE_PREFIXES = [
     "MATH", "CHEM", "ENGL", "SOCI", "GEOG"
 ]
 
-COURSE_WORDS = {
-    "COMP": ["Programming", "Software", "Algorithms", "Databases", "Networks", "AI", "Systems"],
-    "BIOL": ["Genetics", "Ecology", "Microbiology", "Anatomy", "Botany", "Zoology"],
-    "PHYS": ["Mechanics", "Optics", "Quantum", "Thermodynamics", "Electricity", "Astrophysics"],
-    "ECON": ["Microeconomics", "Macroeconomics", "Finance", "Markets", "Trade", "Development"],
-    "HIST": ["Ancient History", "Modern History", "Caribbean History", "World History", "Empire", "Revolution"],
-    "MATH": ["Calculus", "Algebra", "Statistics", "Geometry", "Probability", "Discrete Math"],
-    "CHEM": ["Organic Chemistry", "Inorganic Chemistry", "Biochemistry", "Analytical Chemistry", "Physical Chemistry"],
-    "ENGL": ["Literature", "Writing", "Poetry", "Drama", "Linguistics", "Composition"],
-    "SOCI": ["Sociology", "Culture", "Identity", "Society", "Institutions", "Social Theory"],
-    "GEOG": ["Geography", "Climate", "Mapping", "Urban Studies", "Environment", "Regions"]
-}
-
 
 def esc(value: str) -> str:
     return value.replace("'", "''")
@@ -93,14 +80,13 @@ def generate_students():
         user_id = STUDENT_START_ID + i
         full_name = fake.name()
         email = f"student{i + 1}@school.edu"
-        gpa = round(random.uniform(0.0, 4.0), 2)
         students.append({
             "userId": user_id,
             "fullName": full_name,
             "email": email,
-            "role": "student",
-            "gpa": gpa
+            "role": "student"
         })
+
     return students
 
 
@@ -122,23 +108,15 @@ def make_course_code(existing_codes):
             return code
 
 
-def generate_course_title(prefix, used_titles):
-    subject_word = random.choice(COURSE_WORDS.get(prefix, ["Studies"]))
-
-    suffix_options = [
-        fake.word().capitalize(),
-        fake.catch_phrase(),
-        fake.bs().title(),
-        f"{fake.word().capitalize()} Systems",
-        f"{fake.word().capitalize()} Applications",
-        f"{fake.word().capitalize()} Methods",
-        f"{fake.word().capitalize()} Principles",
-        f"{fake.word().capitalize()} Concepts"
-    ]
-
+def generate_course_title(used_titles):
     while True:
-        suffix = random.choice(suffix_options)
-        title = f"{subject_word} {suffix}".strip()
+        title = fake.sentence(nb_words=3).replace(".", "")
+
+        # Capitalize properly
+        title = title.title()
+
+        if len(title) > 60:
+            continue
 
         if title not in used_titles:
             used_titles.add(title)
@@ -152,9 +130,10 @@ def generate_courses(admin_ids):
 
     for _ in range(NUM_COURSES):
         code = make_course_code(existing_codes)
-        prefix = code[:4]
-        title = generate_course_title(prefix, used_titles)
+
+        title = generate_course_title(used_titles)
         description = f"{title} for {code}"
+
         created_by_admin_id = random.choice(admin_ids)
 
         courses.append({
@@ -297,13 +276,13 @@ def main():
         )
 
         student_rows = [
-            f"({s['userId']}, {s['gpa']})"
+            f"({s['userId']})"
             for s in students
         ]
         write_insert_batches(
             f,
             "Students",
-            "userId, gpa",
+            "userId",
             student_rows,
             batch_size=2000
         )
