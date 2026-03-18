@@ -15,5 +15,5 @@ def get_db():
 def close_db(connection, cursor):
     if cursor:
         cursor.close()
-    if connection:
+    if connection and connection.is_connected():
         connection.close()

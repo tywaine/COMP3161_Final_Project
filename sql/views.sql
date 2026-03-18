@@ -8,8 +8,7 @@ SELECT
     c.courseId,
     c.courseCode,
     c.courseName,
-    c.semester,
-    c.year,
+    c.description,
     COUNT(e.studentId) AS studentCount
 FROM Courses c
 JOIN Enrollment e
@@ -18,8 +17,7 @@ GROUP BY
     c.courseId,
     c.courseCode,
     c.courseName,
-    c.semester,
-    c.year
+    c.description
 HAVING COUNT(e.studentId) >= 50;
 
 
@@ -73,8 +71,7 @@ SELECT
     c.courseId,
     c.courseCode,
     c.courseName,
-    c.semester,
-    c.year,
+    c.description,
     COUNT(e.studentId) AS studentCount
 FROM Courses c
 JOIN Enrollment e
@@ -83,8 +80,7 @@ GROUP BY
     c.courseId,
     c.courseCode,
     c.courseName,
-    c.semester,
-    c.year
+    c.description
 ORDER BY studentCount DESC, c.courseName ASC
 LIMIT 10;
 

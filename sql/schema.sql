@@ -42,21 +42,12 @@ CREATE TABLE Admins (
 
 CREATE TABLE Courses (
     courseId INT AUTO_INCREMENT PRIMARY KEY,
-    courseCode VARCHAR(20) NOT NULL UNIQUE,
-    courseName VARCHAR(150) NOT NULL,
+    courseCode VARCHAR(8) NOT NULL UNIQUE,
+    courseName VARCHAR(100) NOT NULL,
     description TEXT,
-    semester INT NOT NULL,
-    year INT NOT NULL,
-    CHECK (semester IN (1, 2))
-);
-
-CREATE TABLE CourseCreation (
-    courseId INT PRIMARY KEY,
-    adminId INT NOT NULL,
+    createdByAdminId INT NOT NULL,
     createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (courseId) REFERENCES Courses(courseId)
-        ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (adminId) REFERENCES Admins(userId)
+    FOREIGN KEY (createdByAdminId) REFERENCES Admins(userId)
         ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
@@ -125,10 +116,10 @@ CREATE TABLE DiscussionThreads (
 );
 
 CREATE TABLE Posts (
-    postId BIGINT AUTO_INCREMENT PRIMARY KEY,
+    postId INT AUTO_INCREMENT PRIMARY KEY,
     threadId INT NOT NULL,
     userId INT NOT NULL,
-    parentPostId BIGINT DEFAULT NULL,
+    parentPostId INT DEFAULT NULL,
     content TEXT NOT NULL,
     createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (threadId) REFERENCES DiscussionThreads(threadId)
@@ -187,7 +178,7 @@ CREATE TABLE Assignments (
 );
 
 CREATE TABLE Submissions (
-    submissionId BIGINT AUTO_INCREMENT PRIMARY KEY,
+    submissionId INT AUTO_INCREMENT PRIMARY KEY,
     assignmentId INT NOT NULL,
     studentId INT NOT NULL,
     submittedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -207,7 +198,6 @@ CREATE TABLE Submissions (
 -- =========================
 
 CREATE INDEX idx_users_role ON Users(role);
-CREATE INDEX idx_courses_year_semester ON Courses(year, semester);
 CREATE INDEX idx_calendarevents_courseId ON CalendarEvents(courseId);
 CREATE INDEX idx_calendarevents_eventDateTime ON CalendarEvents(eventDateTime);
 CREATE INDEX idx_forums_courseId ON Forums(courseId);
