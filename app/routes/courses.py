@@ -193,9 +193,8 @@ def get_courses_for_student(student_id):
         courses = cursor.fetchall()
 
         return success_response(
-            "Student courses retrieved successfully",
+            f"Student courses for id# {student_id} retrieved successfully",
             {
-                "studentId": student_id,
                 "courses": courses
             }
         )
@@ -243,9 +242,8 @@ def get_courses_for_lecturer(lecturer_id):
         courses = cursor.fetchall()
 
         return success_response(
-            "Lecturer courses retrieved successfully",
+            f"Lecturer courses for id# {lecturer_id} retrieved successfully",
             {
-                "lecturerId": lecturer_id,
                 "courses": courses
             }
         )

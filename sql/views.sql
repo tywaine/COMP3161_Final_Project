@@ -1,8 +1,5 @@
 USE course_management;
 
--- =========================================================
--- 1. All courses that have 50 or more students
--- =========================================================
 CREATE OR REPLACE VIEW CoursesWith50OrMoreStudents AS
 SELECT
     c.courseId,
@@ -21,9 +18,6 @@ GROUP BY
 HAVING COUNT(e.studentId) >= 50;
 
 
--- =========================================================
--- 2. All students that do 5 or more courses
--- =========================================================
 CREATE OR REPLACE VIEW StudentsWith5OrMoreCourses AS
 SELECT
     s.userId AS studentId,
@@ -42,9 +36,6 @@ GROUP BY
 HAVING COUNT(e.courseId) >= 5;
 
 
--- =========================================================
--- 3. All lecturers that teach 3 or more courses
--- =========================================================
 CREATE OR REPLACE VIEW LecturersWith3OrMoreCourses AS
 SELECT
     l.userId AS lecturerId,
@@ -63,9 +54,6 @@ GROUP BY
 HAVING COUNT(t.courseId) >= 3;
 
 
--- =========================================================
--- 4. The 10 most enrolled courses
--- =========================================================
 CREATE OR REPLACE VIEW Top10MostEnrolledCourses AS
 SELECT
     c.courseId,
@@ -85,9 +73,6 @@ ORDER BY studentCount DESC, c.courseName ASC
 LIMIT 10;
 
 
--- =========================================================
--- 5. The top 10 students with the highest overall averages
--- =========================================================
 CREATE OR REPLACE VIEW Top10StudentsHighestOverallAverages AS
 SELECT
     s.userId AS studentId,
