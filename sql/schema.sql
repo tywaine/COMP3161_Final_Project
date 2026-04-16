@@ -72,6 +72,22 @@ CREATE TABLE Teaching (
     FOREIGN KEY (courseId) REFERENCES Courses(courseId)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
+-- =========================
+-- Retrieve Members of a course
+-- =========================
+-- Get Lecturer
+SELECT u.userId, u.fullName, 'Lecturer' AS role
+FROM Users u
+JOIN Teaching t ON u.userId = t.lecturerId
+WHERE t.courseId = ?
+
+UNION ALL
+
+-- Get Students
+SELECT u.userId, u.fullName, 'Student' AS role
+FROM Users u
+JOIN Enrollment e ON u.userId = e.studentId
+WHERE e.courseId = ?;
 
 -- =========================
 -- Calendar and forums
@@ -208,3 +224,4 @@ CREATE INDEX idx_sections_courseId ON Sections(courseId);
 CREATE INDEX idx_sectionitems_sectionId ON SectionItems(sectionId);
 CREATE INDEX idx_assignments_courseId ON Assignments(courseId);
 CREATE INDEX idx_submissions_studentId ON Submissions(studentId);
+
