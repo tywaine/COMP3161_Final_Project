@@ -90,37 +90,153 @@ def generate_students():
     return students
 
 
-def make_course_code(existing_codes):
+SUBJECT_COURSES = {
+    "COMP": {
+        0: ["Introduction to Computing", "Digital Literacy", "Computational Thinking", "Computer Applications", "Foundations of Programming"],
+        1: ["Programming Fundamentals", "Data Structures", "Discrete Mathematics for Computing", "Web Development I",
+            "Computer Organization", "Introduction to Algorithms", "Object-Oriented Programming", "Database Fundamentals",
+            "Systems Programming", "Software Engineering Principles"],
+        2: ["Operating Systems", "Computer Networks", "Software Engineering", "Database Management Systems",
+            "Theory of Computation", "Computer Architecture", "Web Development II", "Mobile Application Development",
+            "Human-Computer Interaction", "Information Security"],
+        3: ["Artificial Intelligence", "Machine Learning", "Compiler Design", "Distributed Systems",
+            "Computer Graphics", "Cloud Computing", "Data Mining", "Cybersecurity",
+            "Natural Language Processing", "Capstone Project in Computing"]
+    },
+    "BIOL": {
+        0: ["Foundations of Biology", "Introduction to Life Sciences", "Basic Anatomy", "Nature and Environment", "Biology Lab Techniques"],
+        1: ["Cell Biology", "Genetics", "General Ecology", "Zoology I", "Botany I",
+            "Biochemistry I", "Microbiology", "Human Anatomy", "Evolutionary Biology", "Marine Biology"],
+        2: ["Molecular Biology", "Immunology", "Plant Physiology", "Animal Behaviour", "Developmental Biology",
+            "Biostatistics", "Environmental Biology", "Parasitology", "Histology", "Comparative Anatomy"],
+        3: ["Genomics and Bioinformatics", "Advanced Genetics", "Neurobiology", "Conservation Biology",
+            "Tropical Ecology", "Biotechnology", "Virology", "Medical Microbiology",
+            "Research Methods in Biology", "Capstone Project in Biology"]
+    },
+    "PHYS": {
+        0: ["Introductory Physics", "Physics for Everyday Life", "Basic Mechanics", "Foundations of Physical Science", "Physics Lab Safety"],
+        1: ["Classical Mechanics", "Electricity and Magnetism", "Waves and Optics", "Thermal Physics",
+            "Mathematical Methods for Physics", "Introduction to Astrophysics", "Physics Lab I",
+            "Modern Physics", "Fluid Mechanics", "Physics Problem Solving"],
+        2: ["Quantum Mechanics I", "Electrodynamics", "Thermodynamics and Statistical Mechanics", "Solid State Physics",
+            "Nuclear Physics", "Computational Physics", "Atomic Physics", "Physics Lab II",
+            "Analytical Mechanics", "Electronics for Scientists"],
+        3: ["Quantum Mechanics II", "General Relativity", "Particle Physics", "Plasma Physics",
+            "Advanced Astrophysics", "Condensed Matter Physics", "Photonics",
+            "Medical Physics", "Research Methods in Physics", "Capstone Project in Physics"]
+    },
+    "ECON": {
+        0: ["Introduction to Economics", "Economic Reasoning", "Foundations of Business", "Personal Finance", "Global Economy Basics"],
+        1: ["Microeconomics I", "Macroeconomics I", "Mathematics for Economics", "Economic History",
+            "Introduction to Econometrics", "Development Economics", "Money and Banking",
+            "Labour Economics", "Political Economy", "Caribbean Economics"],
+        2: ["Microeconomics II", "Macroeconomics II", "International Trade", "Public Finance",
+            "Industrial Organization", "Econometrics", "Environmental Economics",
+            "Financial Economics", "Health Economics", "Game Theory"],
+        3: ["Advanced Econometrics", "Monetary Economics", "Economic Policy Analysis", "Behavioral Economics",
+            "International Finance", "Economic Growth and Development", "Urban Economics",
+            "Economics of Innovation", "Research Methods in Economics", "Capstone Project in Economics"]
+    },
+    "HIST": {
+        0: ["World History Survey", "Introduction to Historical Methods", "Foundations of History", "Caribbean Heritage", "History of Ideas"],
+        1: ["Ancient Civilizations", "Medieval History", "Caribbean History I", "European History to 1800",
+            "African History", "Latin American History", "History of the Americas",
+            "Social History", "Economic History", "Historical Research Methods"],
+        2: ["Modern European History", "Caribbean History II", "History of Slavery", "Colonial History",
+            "American History", "Asian History", "War and Society",
+            "Women in History", "Oral History Methods", "Intellectual History"],
+        3: ["Historiography", "Postcolonial Studies", "Comparative Caribbean History", "Nationalism and Identity",
+            "Digital History", "Public History", "Environmental History",
+            "History of Science and Technology", "Research Seminar in History", "Capstone Project in History"]
+    },
+    "MATH": {
+        0: ["Pre-Calculus", "Foundations of Mathematics", "Basic Statistics", "Mathematical Reasoning", "College Algebra"],
+        1: ["Calculus I", "Calculus II", "Linear Algebra", "Introduction to Probability",
+            "Number Theory", "Geometry", "Mathematical Logic",
+            "Calculus III", "Introduction to Proofs", "Applied Mathematics I"],
+        2: ["Real Analysis I", "Abstract Algebra I", "Differential Equations", "Numerical Methods",
+            "Complex Analysis", "Combinatorics", "Topology",
+            "Mathematical Modelling", "Probability and Statistics II", "Applied Mathematics II"],
+        3: ["Real Analysis II", "Abstract Algebra II", "Functional Analysis", "Partial Differential Equations",
+            "Graph Theory", "Cryptography", "Optimization",
+            "Stochastic Processes", "Research Methods in Mathematics", "Capstone Project in Mathematics"]
+    },
+    "CHEM": {
+        0: ["Introduction to Chemistry", "Chemistry in Society", "Lab Safety and Techniques", "Foundations of Chemical Science", "Environmental Chemistry Basics"],
+        1: ["General Chemistry I", "General Chemistry II", "Organic Chemistry I", "Analytical Chemistry",
+            "Inorganic Chemistry I", "Chemistry Lab I", "Physical Chemistry I",
+            "Chemical Bonding", "Stoichiometry", "Chemistry of Materials"],
+        2: ["Organic Chemistry II", "Physical Chemistry II", "Inorganic Chemistry II", "Spectroscopy",
+            "Polymer Chemistry", "Medicinal Chemistry", "Chemistry Lab II",
+            "Chemical Thermodynamics", "Coordination Chemistry", "Industrial Chemistry"],
+        3: ["Advanced Organic Chemistry", "Quantum Chemistry", "Electrochemistry", "Nanochemistry",
+            "Pharmaceutical Chemistry", "Computational Chemistry", "Natural Products Chemistry",
+            "Food Chemistry", "Research Methods in Chemistry", "Capstone Project in Chemistry"]
+    },
+    "ENGL": {
+        0: ["Introduction to English Studies", "Academic Writing Basics", "English Grammar Review", "Foundations of Literature", "Critical Reading Skills"],
+        1: ["Introduction to Literature", "English Composition", "Creative Writing I", "Linguistics I",
+            "Caribbean Literature", "British Literature I", "American Literature I",
+            "Introduction to Poetry", "Academic Writing", "Public Speaking"],
+        2: ["Shakespeare Studies", "Postcolonial Literature", "Linguistics II", "Creative Writing II",
+            "Literary Theory", "British Literature II", "American Literature II",
+            "African Literature", "Gender and Literature", "Professional Communication"],
+        3: ["Advanced Literary Theory", "Discourse Analysis", "Sociolinguistics", "Caribbean Literary Criticism",
+            "Digital Humanities", "Comparative Literature", "Publishing and Editing",
+            "Advanced Creative Writing", "Research Methods in English", "Capstone Project in English"]
+    },
+    "SOCI": {
+        0: ["Introduction to Sociology", "Understanding Society", "Social Issues Today", "Foundations of Social Science", "Community and Culture"],
+        1: ["Sociological Theory I", "Research Methods in Sociology", "Social Psychology", "Caribbean Society",
+            "Sociology of the Family", "Urban Sociology", "Criminology",
+            "Sociology of Education", "Population Studies", "Social Stratification"],
+        2: ["Sociological Theory II", "Qualitative Research Methods", "Sociology of Health", "Deviance and Social Control",
+            "Political Sociology", "Sociology of Religion", "Race and Ethnicity",
+            "Gender Studies", "Sociology of Work", "Media and Society"],
+        3: ["Advanced Sociological Theory", "Globalization and Society", "Environmental Sociology", "Sociology of Development",
+            "Visual Sociology", "Social Movements", "Youth and Society",
+            "Aging and Society", "Research Seminar in Sociology", "Capstone Project in Sociology"]
+    },
+    "GEOG": {
+        0: ["Introduction to Geography", "Maps and Spatial Thinking", "Earth and Environment", "Foundations of Physical Geography", "Caribbean Landscapes"],
+        1: ["Physical Geography", "Human Geography", "Cartography and GIS", "Climatology",
+            "Geomorphology", "Biogeography", "Economic Geography",
+            "Caribbean Geography", "Environmental Management", "Urban Geography"],
+        2: ["Remote Sensing", "Advanced GIS", "Hydrology", "Soil Science",
+            "Population Geography", "Political Geography", "Coastal Studies",
+            "Natural Hazards", "Resource Management", "Transport Geography"],
+        3: ["Advanced Remote Sensing", "Climate Change Science", "Geospatial Analysis", "Sustainable Development",
+            "Advanced Coastal Management", "Environmental Impact Assessment", "Landscape Ecology",
+            "Urban Planning", "Research Methods in Geography", "Capstone Project in Geography"]
+    }
+}
+
+
+def make_course_code_and_name(existing_codes, used_titles):
     """
     Format:
     4 letters + 4 digits
-    first digit indicates year level: 1, 2, or 3
+    first digit indicates year level: 0, 1, 2, or 3
     examples:
-    COMP1210, BIOL1000, PHYS2190, ECON3100
+    COMP1210, BIOL0000, PHYS2190, ECON3100
     """
     while True:
         prefix = random.choice(COURSE_PREFIXES)
-        first_digit = str(random.randint(1, 3))
+        first_digit = random.randint(0, 3)
+
+        # Pick a name from that subject + year level
+        available_names = [n for n in SUBJECT_COURSES[prefix][first_digit] if n not in used_titles]
+        if not available_names:
+            continue
+
+        name = random.choice(available_names)
+
         last_three = f"{random.randint(0, 999):03d}"
         code = f"{prefix}{first_digit}{last_three}"
         if code not in existing_codes:
             existing_codes.add(code)
-            return code
-
-
-def generate_course_title(used_titles):
-    while True:
-        title = fake.sentence(nb_words=3).replace(".", "")
-
-        # Capitalize properly
-        title = title.title()
-
-        if len(title) > 60:
-            continue
-
-        if title not in used_titles:
-            used_titles.add(title)
-            return title
+            used_titles.add(name)
+            return code, name
 
 
 def generate_courses(admin_ids):
@@ -129,21 +245,21 @@ def generate_courses(admin_ids):
     courses = []
 
     for _ in range(NUM_COURSES):
-        code = make_course_code(existing_codes)
+        code, name = make_course_code_and_name(existing_codes, used_titles)
 
-        title = generate_course_title(used_titles)
-        description = f"{title} for {code}"
+        description = f"{name} - {code}"
 
         created_by_admin_id = random.choice(admin_ids)
 
         courses.append({
             "courseCode": code,
-            "courseName": title,
+            "courseName": name,
             "description": description,
             "createdByAdminId": created_by_admin_id
         })
 
     return courses
+
 
 
 def assign_teaching(courses, lecturer_ids):

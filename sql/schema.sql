@@ -76,18 +76,18 @@ CREATE TABLE Teaching (
 -- Retrieve Members of a course
 -- =========================
 -- Get Lecturer
-SELECT u.userId, u.fullName, 'Lecturer' AS role
-FROM Users u
-JOIN Teaching t ON u.userId = t.lecturerId
-WHERE t.courseId = ?
-
-UNION ALL
-
+-- SELECT u.userId, u.fullName, 'Lecturer' AS role
+-- FROM Users u
+-- JOIN Teaching t ON u.userId = t.lecturerId
+-- WHERE t.courseId = ?
+--
+-- UNION ALL
+--
 -- Get Students
-SELECT u.userId, u.fullName, 'Student' AS role
-FROM Users u
-JOIN Enrollment e ON u.userId = e.studentId
-WHERE e.courseId = ?;
+-- SELECT u.userId, u.fullName, 'Student' AS role
+-- FROM Users u
+-- JOIN Enrollment e ON u.userId = e.studentId
+-- WHERE e.courseId = ?;
 
 -- =========================
 -- Calendar and forums

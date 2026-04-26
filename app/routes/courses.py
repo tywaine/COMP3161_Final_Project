@@ -43,8 +43,8 @@ def create_course():
         except (TypeError, ValueError):
             return error_response("lecturerId must be a number")
 
-        if not re.fullmatch(r"[A-Z]{4}[1-3][0-9]{3}", course_code):
-            return error_response("courseCode must be in the format AAAA1000 to AAAA3999")
+        if not re.fullmatch(r"[A-Z]{4}[0-3][0-9]{3}", course_code.upper()):
+            return error_response("courseCode must be 4 letters followed by 4 digits starting with 0-3 (e.g. BIOL1000)")
 
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
