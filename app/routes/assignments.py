@@ -1,40 +1,497 @@
+from datetime import datetime
+
 from flask import Blueprint, request
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from mysql.connector import Error
 
 from app.db import get_db, close_db
 from app.utils.response import error_response, success_response
 
-assignments_bp = Blueprint("assignments", __name__, url_prefix="/api/assignments")
+assignments_bp = Blueprint(
+    "assignments",
+    __name__,
+    url_prefix="/api/assignments"
+)
 
 
-@assignments_bp.route("/create", methods=["POST"])
-def create_assignment():
+def is_assigned_lecturer(cursor, lecturer_id, course_id):
+    cursor.execute(
+        """
+        SELECT lecturerId
+        FROM Teaching
+        WHERE lecturerId = %s AND courseId = %s
+        """,
+        (lecturer_id, course_id)
+    )
+    return cursor.fetchone() is not None
+
+
+def is_enrolled_student(cursor, student_id, course_id):
+    cursor.execute(
+        """
+        SELECT studentId
+        FROM Enrollment
+        WHERE studentId = %s AND courseId = %s
+        """,
+        (student_id, course_id)
+    )
+    return cursor.fetchone() is not None
+
+
+def update_student_final_average(cursor, student_id, course_id):
+    cursor.execute(
+        """
+        SELECT ROUND(AVG(s.grade), 2) AS finalAverage
+        FROM Submissions s
+        JOIN Assignments a ON s.assignmentId = a.assignmentId
+        WHERE s.studentId = %s
+          AND a.courseId = %s
+          AND s.grade IS NOT NULL
+        """,
+        (student_id, course_id)
+    )
+    result = cursor.fetchone()
+    final_average = result["finalAverage"] if result and result["finalAverage"] is not None else None
+
+    cursor.execute(
+        """
+        UPDATE Enrollment
+        SET finalGrade = %s
+        WHERE studentId = %s AND courseId = %s
+        """,
+        (final_average, student_id, course_id)
+    )
+
+    return final_average
+
+
+@assignments_bp.route("/course/<int:course_id>", methods=["POST"])
+@jwt_required()
+def create_assignment(course_id):
     connection = None
     cursor = None
 
     try:
+        claims = get_jwt()
+        current_role = claims.get("role")
+        current_user_id = int(get_jwt_identity())
+
+        if current_role != "lecturer":
+            return error_response("Only lecturers can create assignments", 403)
+
         data = request.get_json()
+        if not data:
+            return error_response("Request body must be JSON")
 
-        course_id = data.get("courseId")
         title = data.get("title")
+        description = data.get("description")
+        due_date = data.get("dueDate")
+        total_marks = data.get("totalMarks", 100.00)
 
-        if not course_id or not title:
-            return error_response("Missing fields")
+        if not title or not due_date:
+            return error_response("title and dueDate are required")
+
+        try:
+            parsed_due_date = datetime.strptime(due_date, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return error_response("dueDate must be in YYYY-MM-DD HH:MM:SS format")
 
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
-        cursor.execute("""
-            INSERT INTO assignments (course_id, title)
-            VALUES (%s, %s)
-        """, (course_id, title))
+        cursor.execute(
+            "SELECT courseId, courseCode, courseName FROM Courses WHERE courseId = %s",
+            (course_id,)
+        )
+        course = cursor.fetchone()
 
+        if not course:
+            return error_response("Course not found", 404)
+
+        if not is_assigned_lecturer(cursor, current_user_id, course_id):
+            return error_response("Only the assigned lecturer can create assignments for this course", 403)
+
+        cursor.execute(
+            """
+            INSERT INTO Assignments (courseId, title, description, dueDate, totalMarks, createdByUserId)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                course_id,
+                title,
+                description,
+                parsed_due_date,
+                total_marks,
+                current_user_id
+            )
+        )
+
+        assignment_id = cursor.lastrowid
         connection.commit()
 
-        return success_response("Assignment created")
+        return success_response(
+            "Assignment created successfully",
+            {
+                "assignment": {
+                    "assignmentId": assignment_id,
+                    "courseId": course_id,
+                    "title": title,
+                    "description": description,
+                    "dueDate": due_date,
+                    "totalMarks": total_marks,
+                    "createdByUserId": current_user_id
+                }
+            },
+            201
+        )
 
     except Error as e:
         return error_response("Database error", 500, e)
+
+    except Exception as e:
+        return error_response("Server error", 500, e)
+
+    finally:
+        close_db(connection, cursor)
+
+
+@assignments_bp.route("/course/<int:course_id>", methods=["GET"])
+@jwt_required()
+def get_assignments_for_course(course_id):
+    connection = None
+    cursor = None
+
+    try:
+        claims = get_jwt()
+        current_role = claims.get("role")
+        current_user_id = int(get_jwt_identity())
+
+        connection = get_db()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT courseId, courseCode, courseName FROM Courses WHERE courseId = %s",
+            (course_id,)
+        )
+        course = cursor.fetchone()
+
+        if not course:
+            return error_response("Course not found", 404)
+
+        allowed = False
+
+        if current_role == "admin":
+            allowed = True
+        elif current_role == "lecturer":
+            allowed = is_assigned_lecturer(cursor, current_user_id, course_id)
+        elif current_role == "student":
+            allowed = is_enrolled_student(cursor, current_user_id, course_id)
+
+        if not allowed:
+            return error_response("You are not allowed to view assignments for this course", 403)
+
+        cursor.execute(
+            """
+            SELECT a.assignmentId,
+                   a.courseId,
+                   a.title,
+                   a.description,
+                   a.dueDate,
+                   a.totalMarks,
+                   a.createdByUserId,
+                   u.fullName AS createdByName
+            FROM Assignments a
+                     JOIN Users u ON a.createdByUserId = u.userId
+            WHERE a.courseId = %s
+            ORDER BY a.dueDate, a.assignmentId
+            """,
+            (course_id,)
+        )
+        assignments = cursor.fetchall()
+
+        return success_response(
+            "Assignments retrieved successfully",
+            {
+                "course": course,
+                "assignments": assignments
+            }
+        )
+
+    except Error as e:
+        return error_response("Database error", 500, e)
+
+    except Exception as e:
+        return error_response("Server error", 500, e)
+
+    finally:
+        close_db(connection, cursor)
+
+
+@assignments_bp.route("/<int:assignment_id>/submit", methods=["POST"])
+@jwt_required()
+def submit_assignment(assignment_id):
+    connection = None
+    cursor = None
+
+    try:
+        claims = get_jwt()
+        current_role = claims.get("role")
+        current_user_id = int(get_jwt_identity())
+
+        if current_role != "student":
+            return error_response("Only students can submit assignments", 403)
+
+        data = request.get_json()
+        if not data:
+            return error_response("Request body must be JSON")
+
+        file_path = data.get("filePath")
+        text_content = data.get("textContent")
+
+        if not file_path and not text_content:
+            return error_response("At least one of filePath or textContent is required")
+
+        connection = get_db()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                a.assignmentId,
+                a.courseId,
+                a.title,
+                a.dueDate
+            FROM Assignments a
+            WHERE a.assignmentId = %s
+            """,
+            (assignment_id,)
+        )
+        assignment = cursor.fetchone()
+
+        if not assignment:
+            return error_response("Assignment not found", 404)
+
+        if not is_enrolled_student(cursor, current_user_id, assignment["courseId"]):
+            return error_response("Only enrolled students can submit assignments for this course", 403)
+
+        cursor.execute(
+            """
+            SELECT submissionId
+            FROM Submissions
+            WHERE assignmentId = %s AND studentId = %s
+            """,
+            (assignment_id, current_user_id)
+        )
+        existing_submission = cursor.fetchone()
+
+        if existing_submission:
+            return error_response("Student has already submitted this assignment", 409)
+
+        cursor.execute(
+            """
+            INSERT INTO Submissions (assignmentId, studentId, filePath, textContent)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (assignment_id, current_user_id, file_path, text_content)
+        )
+
+        submission_id = cursor.lastrowid
+        connection.commit()
+
+        return success_response(
+            "Assignment submitted successfully",
+            {
+                "submission": {
+                    "submissionId": submission_id,
+                    "assignmentId": assignment_id,
+                    "studentId": current_user_id,
+                    "filePath": file_path,
+                    "textContent": text_content
+                }
+            },
+            201
+        )
+
+    except Error as e:
+        return error_response("Database error", 500, e)
+
+    except Exception as e:
+        return error_response("Server error", 500, e)
+
+    finally:
+        close_db(connection, cursor)
+
+
+@assignments_bp.route("/<int:assignment_id>/submissions", methods=["GET"])
+@jwt_required()
+def get_submissions_for_assignment(assignment_id):
+    connection = None
+    cursor = None
+
+    try:
+        claims = get_jwt()
+        current_role = claims.get("role")
+        current_user_id = int(get_jwt_identity())
+
+        connection = get_db()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                a.assignmentId,
+                a.courseId,
+                a.title
+            FROM Assignments a
+            WHERE a.assignmentId = %s
+            """,
+            (assignment_id,)
+        )
+        assignment = cursor.fetchone()
+
+        if not assignment:
+            return error_response("Assignment not found", 404)
+
+        allowed = False
+        if current_role == "lecturer":
+            allowed = is_assigned_lecturer(cursor, current_user_id, assignment["courseId"])
+        elif current_role == "admin":
+            allowed = True
+
+        if not allowed:
+            return error_response("Only the assigned lecturer or an admin can view submissions", 403)
+
+        cursor.execute(
+            """
+            SELECT s.submissionId,
+                   s.assignmentId,
+                   s.studentId,
+                   u.fullName AS studentName,
+                   s.submittedAt,
+                   s.filePath,
+                   s.textContent,
+                   s.grade,
+                   s.feedback
+            FROM Submissions s
+                     JOIN Users u ON s.studentId = u.userId
+            WHERE s.assignmentId = %s
+            ORDER BY s.submittedAt, s.submissionId
+            """,
+            (assignment_id,)
+        )
+        submissions = cursor.fetchall()
+
+        return success_response(
+            "Submissions retrieved successfully",
+            {
+                "assignment": assignment,
+                "submissions": submissions
+            }
+        )
+
+    except Error as e:
+        return error_response("Database error", 500, e)
+
+    except Exception as e:
+        return error_response("Server error", 500, e)
+
+    finally:
+        close_db(connection, cursor)
+
+
+@assignments_bp.route("/submissions/<int:submission_id>/grade", methods=["PUT"])
+@jwt_required()
+def grade_submission(submission_id):
+    connection = None
+    cursor = None
+
+    try:
+        claims = get_jwt()
+        current_role = claims.get("role")
+        current_user_id = int(get_jwt_identity())
+
+        if current_role != "lecturer":
+            return error_response("Only lecturers can grade submissions", 403)
+
+        data = request.get_json()
+        if not data:
+            return error_response("Request body must be JSON")
+
+        grade = data.get("grade")
+        feedback = data.get("feedback")
+
+        if grade is None:
+            return error_response("grade is required")
+
+        connection = get_db()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                s.submissionId,
+                s.studentId,
+                s.assignmentId,
+                a.courseId,
+                a.totalMarks
+            FROM Submissions s
+            JOIN Assignments a ON s.assignmentId = a.assignmentId
+            WHERE s.submissionId = %s
+            """,
+            (submission_id,)
+        )
+        submission = cursor.fetchone()
+
+        if not submission:
+            return error_response("Submission not found", 404)
+
+        if not is_assigned_lecturer(cursor, current_user_id, submission["courseId"]):
+            return error_response("Only the assigned lecturer can grade submissions for this course", 403)
+
+        try:
+            grade = float(grade)
+        except (TypeError, ValueError):
+            return error_response("grade must be a number")
+
+        if grade < 0 or grade > float(submission["totalMarks"]):
+            return error_response(f"grade must be between 0 and {submission['totalMarks']}")
+
+        cursor.execute(
+            """
+            UPDATE Submissions
+            SET grade = %s, feedback = %s
+            WHERE submissionId = %s
+            """,
+            (grade, feedback, submission_id)
+        )
+
+        final_average = update_student_final_average(
+            cursor,
+            submission["studentId"],
+            submission["courseId"]
+        )
+
+        connection.commit()
+
+        return success_response(
+            "Submission graded successfully",
+            {
+                "gradedSubmission": {
+                    "submissionId": submission_id,
+                    "assignmentId": submission["assignmentId"],
+                    "studentId": submission["studentId"],
+                    "grade": grade,
+                    "feedback": feedback
+                },
+                "updatedCourseFinalAverage": final_average
+            }
+        )
+
+    except Error as e:
+        return error_response("Database error", 500, e)
+
+    except Exception as e:
+        return error_response("Server error", 500, e)
 
     finally:
         close_db(connection, cursor)

@@ -69,7 +69,7 @@ GROUP BY
     c.courseCode,
     c.courseName,
     c.description
-ORDER BY studentCount DESC, c.courseName ASC
+ORDER BY studentCount DESC, c.courseName
 LIMIT 10;
 
 
@@ -89,5 +89,5 @@ GROUP BY
     s.userId,
     u.fullName,
     u.email
-ORDER BY overallAverage DESC, u.fullName ASC
+ORDER BY overallAverage DESC, u.fullName
 LIMIT 10;

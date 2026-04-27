@@ -1,128 +1,291 @@
-from flask import Blueprint, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from mysql.connector import Error
 from datetime import datetime
+
+from flask import Blueprint, request
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
+from mysql.connector import Error
 
 from app.db import get_db, close_db
 from app.utils.response import error_response, success_response
 
-calendar_bp = Blueprint("calendar", __name__, url_prefix="/api/calendar")
+calendar_events_bp = Blueprint(
+    "calendar_events",
+    __name__,
+    url_prefix="/api/calendar-events"
+)
 
-@calendar_bp.route("/course/<int:course_id>", methods=["GET"])
+
+def is_course_member(cursor, user_id, role, course_id):
+    if role == "admin":
+        return True
+
+    if role == "lecturer":
+        cursor.execute(
+            """
+            SELECT lecturerId
+            FROM Teaching
+            WHERE lecturerId = %s AND courseId = %s
+            """,
+            (user_id, course_id)
+        )
+        return cursor.fetchone() is not None
+
+    if role == "student":
+        cursor.execute(
+            """
+            SELECT studentId
+            FROM Enrollment
+            WHERE studentId = %s AND courseId = %s
+            """,
+            (user_id, course_id)
+        )
+        return cursor.fetchone() is not None
+
+    return False
+
+
+@calendar_events_bp.route("/course/<int:course_id>", methods=["GET"])
 @jwt_required()
-def get_course_events(course_id):
+def get_calendar_events_for_course(course_id):
     connection = None
     cursor = None
+
     try:
+        claims = get_jwt()
+        current_role = claims.get("role")
+        current_user_id = int(get_jwt_identity())
+
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
-        cursor.execute("""
-            SELECT eventId, courseId, createdByUserId, title, description, eventDateTime, createdAt
-            FROM CalendarEvents
+        cursor.execute(
+            """
+            SELECT courseId, courseCode, courseName
+            FROM Courses
             WHERE courseId = %s
-            ORDER BY eventDateTime ASC
-        """, (course_id,))
+            """,
+            (course_id,)
+        )
+        course = cursor.fetchone()
+
+        if not course:
+            return error_response("Course not found", 404)
+
+        if not is_course_member(cursor, current_user_id, current_role, course_id):
+            return error_response("You are not allowed to view calendar events for this course", 403)
+
+        cursor.execute(
+            """
+            SELECT ce.eventId,
+                   ce.courseId,
+                   ce.createdByUserId,
+                   u.fullName AS createdByName,
+                   ce.title,
+                   ce.description,
+                   ce.eventDateTime,
+                   ce.createdAt
+            FROM CalendarEvents ce
+                     JOIN Users u ON ce.createdByUserId = u.userId
+            WHERE ce.courseId = %s
+            ORDER BY ce.eventDateTime
+            """,
+            (course_id,)
+        )
         events = cursor.fetchall()
 
-        return success_response("Events retrieved successfully", {"events": events})
+        return success_response(
+            "Calendar events retrieved successfully",
+            {
+                "course": course,
+                "events": events
+            }
+        )
+
     except Error as e:
         return error_response("Database error", 500, e)
+
+    except Exception as e:
+        return error_response("Server error", 500, e)
+
     finally:
         close_db(connection, cursor)
 
 
-@calendar_bp.route("/student/<int:student_id>/date/<date_string>", methods=["GET"])
+@calendar_events_bp.route("/student/<int:student_id>", methods=["GET"])
 @jwt_required()
-def get_student_events_by_date(student_id, date_string):
+def get_calendar_events_for_student_by_date(student_id):
     connection = None
     cursor = None
+
     try:
-        # Validate date string format (YYYY-MM-DD)
+        claims = get_jwt()
+        current_role = claims.get("role")
+        current_user_id = int(get_jwt_identity())
+
+        if current_role == "student" and current_user_id != student_id:
+            return error_response("Students can only view their own events", 403)
+
+        date_value = request.args.get("date")
+        if not date_value:
+            return error_response("date query parameter is required in YYYY-MM-DD format")
+
         try:
-            datetime.strptime(date_string, "%Y-%m-%d")
+            datetime.strptime(date_value, "%Y-%m-%d")
         except ValueError:
-            return error_response("Invalid date format. Use YYYY-MM-DD", 400)
+            return error_response("date must be in YYYY-MM-DD format")
 
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
-        query = """
-            SELECT c.eventId, c.courseId, c.createdByUserId, c.title, c.description, c.eventDateTime, c.createdAt
-            FROM CalendarEvents c
-            JOIN Enrollment e ON c.courseId = e.courseId
-            WHERE e.studentId = %s AND DATE(c.eventDateTime) = %s
-            ORDER BY c.eventDateTime ASC
-        """
-        cursor.execute(query, (student_id, date_string))
+        cursor.execute(
+            "SELECT userId FROM Students WHERE userId = %s",
+            (student_id,)
+        )
+        student = cursor.fetchone()
+
+        if not student:
+            return error_response("Student not found", 404)
+
+        cursor.execute(
+            """
+            SELECT ce.eventId,
+                   ce.courseId,
+                   c.courseCode,
+                   c.courseName,
+                   ce.createdByUserId,
+                   u.fullName AS createdByName,
+                   ce.title,
+                   ce.description,
+                   ce.eventDateTime,
+                   ce.createdAt
+            FROM Enrollment e
+                     JOIN CalendarEvents ce ON e.courseId = ce.courseId
+                     JOIN Courses c ON ce.courseId = c.courseId
+                     JOIN Users u ON ce.createdByUserId = u.userId
+            WHERE e.studentId = %s
+              AND DATE(ce.eventDateTime) = %s
+            ORDER BY ce.eventDateTime
+            """,
+            (student_id, date_value)
+        )
         events = cursor.fetchall()
 
-        return success_response("Events retrieved successfully", {"events": events})
+        return success_response(
+            "Student calendar events retrieved successfully",
+            {
+                "studentId": student_id,
+                "date": date_value,
+                "events": events
+            }
+        )
+
     except Error as e:
         return error_response("Database error", 500, e)
+
+    except Exception as e:
+        return error_response("Server error", 500, e)
+
     finally:
         close_db(connection, cursor)
 
 
-@calendar_bp.route("/course/<int:course_id>", methods=["POST"])
+@calendar_events_bp.route("/course/<int:course_id>", methods=["POST"])
 @jwt_required()
-def create_event(course_id):
+def create_calendar_event(course_id):
     connection = None
     cursor = None
+
     try:
-        user_id = get_jwt_identity()
+        claims = get_jwt()
+        current_role = claims.get("role")
+        current_user_id = int(get_jwt_identity())
+
         data = request.get_json()
-        
         if not data:
             return error_response("Request body must be JSON")
 
         title = data.get("title")
         description = data.get("description")
-        event_datetime = data.get("eventDateTime")
+        event_date_time = data.get("eventDateTime")
 
-        if not title or not event_datetime:
-            return error_response("title and eventDateTime are required", 400)
+        if not title or not event_date_time:
+            return error_response("title and eventDateTime are required")
 
-        # Validate datetime format (YYYY-MM-DD HH:MM:SS)
         try:
-            datetime.strptime(event_datetime, "%Y-%m-%d %H:%M:%S")
+            parsed_event_date_time = datetime.strptime(event_date_time, "%Y-%m-%d %H:%M:%S")
         except ValueError:
-            return error_response("Invalid eventDateTime format. Use YYYY-MM-DD HH:MM:SS", 400)
+            return error_response("eventDateTime must be in YYYY-MM-DD HH:MM:SS format")
 
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
-        # Check if course exists
-        cursor.execute("SELECT courseId FROM Courses WHERE courseId = %s", (course_id,))
-        if not cursor.fetchone():
+        cursor.execute(
+            """
+            SELECT courseId, courseCode, courseName
+            FROM Courses
+            WHERE courseId = %s
+            """,
+            (course_id,)
+        )
+        course = cursor.fetchone()
+
+        if not course:
             return error_response("Course not found", 404)
 
-        insert_sql = """
+        allowed = False
+
+        if current_role == "admin":
+            allowed = True
+        elif current_role == "lecturer":
+            cursor.execute(
+                """
+                SELECT lecturerId
+                FROM Teaching
+                WHERE lecturerId = %s AND courseId = %s
+                """,
+                (current_user_id, course_id)
+            )
+            allowed = cursor.fetchone() is not None
+
+        if not allowed:
+            return error_response("Only an admin or the assigned lecturer can create calendar events", 403)
+
+        cursor.execute(
+            """
             INSERT INTO CalendarEvents (courseId, createdByUserId, title, description, eventDateTime)
             VALUES (%s, %s, %s, %s, %s)
-        """
-        cursor.execute(insert_sql, (course_id, user_id, title, description, event_datetime))
-        connection.commit()
+            """,
+            (
+                course_id,
+                current_user_id,
+                title,
+                description,
+                parsed_event_date_time
+            )
+        )
 
         event_id = cursor.lastrowid
+        connection.commit()
 
         return success_response(
-            "Event created successfully",
+            "Calendar event created successfully",
             {
                 "event": {
                     "eventId": event_id,
                     "courseId": course_id,
-                    "createdByUserId": int(user_id),
+                    "createdByUserId": current_user_id,
                     "title": title,
                     "description": description,
-                    "eventDateTime": event_datetime
+                    "eventDateTime": event_date_time
                 }
             },
             201
         )
+
     except Error as e:
-        if connection:
-            connection.rollback()
         return error_response("Database error", 500, e)
+
+    except Exception as e:
+        return error_response("Server error", 500, e)
+
     finally:
         close_db(connection, cursor)

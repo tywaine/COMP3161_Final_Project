@@ -100,13 +100,9 @@ def create_course():
         )
 
     except Error as e:
-        if connection:
-            connection.rollback()
         return error_response("Database error", 500, e)
 
     except Exception as e:
-        if connection:
-            connection.rollback()
         return error_response("Server error", 500, e)
 
     finally:
@@ -246,6 +242,102 @@ def get_courses_for_lecturer(lecturer_id):
             {
                 "courses": courses
             }
+        )
+
+    except Error as e:
+        return error_response("Database error", 500, e)
+
+    except Exception as e:
+        return error_response("Server error", 500, e)
+
+    finally:
+        close_db(connection, cursor)
+
+
+@courses_bp.route("/<int:course_id>/register", methods=["POST"])
+@jwt_required()
+def register_for_course(course_id):
+    connection = None
+    cursor = None
+
+    try:
+        claims = get_jwt()
+        current_role = claims.get("role")
+        current_user_id = int(get_jwt_identity())
+
+        if current_role != "student":
+            return error_response("Only students can register for courses", 403)
+
+        connection = get_db()
+        cursor = connection.cursor(dictionary=True)
+
+        # Check if student exists
+        cursor.execute(
+            "SELECT userId FROM Students WHERE userId = %s",
+            (current_user_id,)
+        )
+        student = cursor.fetchone()
+        if not student:
+            return error_response("Student not found", 404)
+
+        # Check if course exists
+        cursor.execute(
+            "SELECT courseId, courseCode, courseName FROM Courses WHERE courseId = %s",
+            (course_id,)
+        )
+        course = cursor.fetchone()
+        if not course:
+            return error_response("Course not found", 404)
+
+        # Check if already enrolled
+        cursor.execute(
+            """
+            SELECT studentId, courseId
+            FROM Enrollment
+            WHERE studentId = %s AND courseId = %s
+            """,
+            (current_user_id, course_id)
+        )
+        existing_enrollment = cursor.fetchone()
+        if existing_enrollment:
+            return error_response("Student is already registered for this course", 409)
+
+        # Enforce max 6 courses per student
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS courseCount
+            FROM Enrollment
+            WHERE studentId = %s
+            """,
+            (current_user_id,)
+        )
+        course_count_result = cursor.fetchone()
+
+        if course_count_result["courseCount"] >= 6:
+            return error_response("Student cannot register for more than 6 courses", 400)
+
+        # Register student
+        cursor.execute(
+            """
+            INSERT INTO Enrollment (studentId, courseId)
+            VALUES (%s, %s)
+            """,
+            (current_user_id, course_id)
+        )
+
+        connection.commit()
+
+        return success_response(
+            "Course registration successful",
+            {
+                "enrollment": {
+                    "studentId": current_user_id,
+                    "courseId": course["courseId"],
+                    "courseCode": course["courseCode"],
+                    "courseName": course["courseName"]
+                }
+            },
+            201
         )
 
     except Error as e:
