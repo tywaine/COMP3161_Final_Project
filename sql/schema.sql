@@ -41,8 +41,7 @@ CREATE TABLE Admins (
 -- =========================
 
 CREATE TABLE Courses (
-    courseId INT AUTO_INCREMENT PRIMARY KEY,
-    courseCode VARCHAR(8) NOT NULL UNIQUE,
+    courseCode VARCHAR(8) PRIMARY KEY,
     courseName VARCHAR(100) NOT NULL,
     description TEXT,
     createdByAdminId INT NOT NULL,
@@ -53,41 +52,25 @@ CREATE TABLE Courses (
 
 CREATE TABLE Enrollment (
     studentId INT NOT NULL,
-    courseId INT NOT NULL,
+    courseCode VARCHAR(8) NOT NULL,
     finalGrade DECIMAL(5,2) DEFAULT NULL,
-    PRIMARY KEY (studentId, courseId),
+    PRIMARY KEY (studentId, courseCode),
     FOREIGN KEY (studentId) REFERENCES Students(userId)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (courseId) REFERENCES Courses(courseId)
+    FOREIGN KEY (courseCode) REFERENCES Courses(courseCode)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE Teaching (
     lecturerId INT NOT NULL,
-    courseId INT NOT NULL,
-    PRIMARY KEY (lecturerId, courseId),
-    UNIQUE (courseId),
+    courseCode VARCHAR(8) NOT NULL,
+    PRIMARY KEY (lecturerId, courseCode),
+    UNIQUE (courseCode),
     FOREIGN KEY (lecturerId) REFERENCES Lecturers(userId)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (courseId) REFERENCES Courses(courseId)
+    FOREIGN KEY (courseCode) REFERENCES Courses(courseCode)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
--- =========================
--- Retrieve Members of a course
--- =========================
--- Get Lecturer
--- SELECT u.userId, u.fullName, 'Lecturer' AS role
--- FROM Users u
--- JOIN Teaching t ON u.userId = t.lecturerId
--- WHERE t.courseId = ?
---
--- UNION ALL
---
--- Get Students
--- SELECT u.userId, u.fullName, 'Student' AS role
--- FROM Users u
--- JOIN Enrollment e ON u.userId = e.studentId
--- WHERE e.courseId = ?;
 
 -- =========================
 -- Calendar and forums
@@ -95,13 +78,13 @@ CREATE TABLE Teaching (
 
 CREATE TABLE CalendarEvents (
     eventId INT AUTO_INCREMENT PRIMARY KEY,
-    courseId INT NOT NULL,
+    courseCode VARCHAR(8) NOT NULL,
     createdByUserId INT NOT NULL,
     title VARCHAR(150) NOT NULL,
     description TEXT,
     eventDateTime DATETIME NOT NULL,
     createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (courseId) REFERENCES Courses(courseId)
+    FOREIGN KEY (courseCode) REFERENCES Courses(courseCode)
         ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (createdByUserId) REFERENCES Users(userId)
         ON DELETE RESTRICT ON UPDATE CASCADE
@@ -109,11 +92,11 @@ CREATE TABLE CalendarEvents (
 
 CREATE TABLE Forums (
     forumId INT AUTO_INCREMENT PRIMARY KEY,
-    courseId INT NOT NULL,
+    courseCode VARCHAR(8) NOT NULL,
     title VARCHAR(150) NOT NULL,
     createdByUserId INT NOT NULL,
     createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (courseId) REFERENCES Courses(courseId)
+    FOREIGN KEY (courseCode) REFERENCES Courses(courseCode)
         ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (createdByUserId) REFERENCES Users(userId)
         ON DELETE RESTRICT ON UPDATE CASCADE
@@ -152,10 +135,10 @@ CREATE TABLE Posts (
 
 CREATE TABLE Sections (
     sectionId INT AUTO_INCREMENT PRIMARY KEY,
-    courseId INT NOT NULL,
+    courseCode VARCHAR(8) NOT NULL,
     title VARCHAR(150) NOT NULL,
     position INT NOT NULL,
-    FOREIGN KEY (courseId) REFERENCES Courses(courseId)
+    FOREIGN KEY (courseCode) REFERENCES Courses(courseCode)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -181,13 +164,13 @@ CREATE TABLE SectionItems (
 
 CREATE TABLE Assignments (
     assignmentId INT AUTO_INCREMENT PRIMARY KEY,
-    courseId INT NOT NULL,
+    courseCode VARCHAR(8) NOT NULL,
     title VARCHAR(150) NOT NULL,
     description TEXT,
     dueDate DATETIME NOT NULL,
     totalMarks DECIMAL(6,2) NOT NULL DEFAULT 100.00,
     createdByUserId INT NOT NULL,
-    FOREIGN KEY (courseId) REFERENCES Courses(courseId)
+    FOREIGN KEY (courseCode) REFERENCES Courses(courseCode)
         ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (createdByUserId) REFERENCES Users(userId)
         ON DELETE RESTRICT ON UPDATE CASCADE
@@ -213,15 +196,54 @@ CREATE TABLE Submissions (
 -- Helpful indexes
 -- =========================
 
+-- Users
 CREATE INDEX idx_users_role ON Users(role);
-CREATE INDEX idx_calendarevents_courseId ON CalendarEvents(courseId);
+CREATE INDEX idx_users_fullName ON Users(fullName);
+
+-- Courses
+CREATE INDEX idx_courses_createdByAdminId ON Courses(createdByAdminId);
+
+-- Enrollment
+CREATE INDEX idx_enrollment_courseCode ON Enrollment(courseCode);
+
+-- Teaching
+CREATE INDEX idx_teaching_courseCode ON Teaching(courseCode);
+
+-- Calendar Events
+CREATE INDEX idx_calendarevents_courseCode ON CalendarEvents(courseCode);
+CREATE INDEX idx_calendarevents_createdByUserId ON CalendarEvents(createdByUserId);
 CREATE INDEX idx_calendarevents_eventDateTime ON CalendarEvents(eventDateTime);
-CREATE INDEX idx_forums_courseId ON Forums(courseId);
+CREATE INDEX idx_calendarevents_courseCode_eventDateTime
+ON CalendarEvents(courseCode, eventDateTime);
+
+-- Forums
+CREATE INDEX idx_forums_courseCode ON Forums(courseCode);
+CREATE INDEX idx_forums_createdByUserId ON Forums(createdByUserId);
+
+-- Discussion Threads
 CREATE INDEX idx_threads_forumId ON DiscussionThreads(forumId);
+CREATE INDEX idx_threads_createdByUserId ON DiscussionThreads(createdByUserId);
+
+-- Posts
 CREATE INDEX idx_posts_threadId ON Posts(threadId);
+CREATE INDEX idx_posts_userId ON Posts(userId);
 CREATE INDEX idx_posts_parentPostId ON Posts(parentPostId);
-CREATE INDEX idx_sections_courseId ON Sections(courseId);
+CREATE INDEX idx_posts_threadId_createdAt ON Posts(threadId, createdAt);
+
+-- Sections
+CREATE INDEX idx_sections_courseCode ON Sections(courseCode);
+CREATE INDEX idx_sections_courseCode_position ON Sections(courseCode, position);
+
+-- Section Items
 CREATE INDEX idx_sectionitems_sectionId ON SectionItems(sectionId);
-CREATE INDEX idx_assignments_courseId ON Assignments(courseId);
+CREATE INDEX idx_sectionitems_uploadedByUserId ON SectionItems(uploadedByUserId);
+
+-- Assignments
+CREATE INDEX idx_assignments_courseCode ON Assignments(courseCode);
+CREATE INDEX idx_assignments_createdByUserId ON Assignments(createdByUserId);
+CREATE INDEX idx_assignments_dueDate ON Assignments(dueDate);
+CREATE INDEX idx_assignments_courseCode_dueDate ON Assignments(courseCode, dueDate);
+
+-- Submissions
 CREATE INDEX idx_submissions_studentId ON Submissions(studentId);
 

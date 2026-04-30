@@ -28,8 +28,7 @@ def get_courses_with_50_or_more_students():
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute("""
-                       SELECT courseId,
-                              courseCode,
+                       SELECT courseCode,
                               courseName,
                               description,
                               studentCount
@@ -144,7 +143,6 @@ def get_top_10_most_enrolled_courses():
 
         cursor.execute("""
             SELECT
-                courseId,
                 courseCode,
                 courseName,
                 description,

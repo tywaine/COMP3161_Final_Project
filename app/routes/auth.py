@@ -5,6 +5,7 @@ from mysql.connector import Error
 
 from app.db import get_db, close_db
 from app.utils.response import error_response, success_response
+from datetime import timedelta
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -100,13 +101,9 @@ def register_user():
         )
 
     except Error as e:
-        if connection:
-            connection.rollback()
         return error_response("Database error", 500, e)
 
     except Exception as e:
-        if connection:
-            connection.rollback()
         return error_response("Server error", 500, e)
 
     finally:
@@ -154,7 +151,8 @@ def login_user():
 
         access_token = create_access_token(
             identity=str(user["userId"]),
-            additional_claims={"role": user["role"]}
+            additional_claims={"role": user["role"]},
+            expires_delta=timedelta(days=1)
         )
 
         return success_response(

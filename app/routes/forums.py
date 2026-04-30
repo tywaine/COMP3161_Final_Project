@@ -8,7 +8,7 @@ from app.utils.response import error_response, success_response
 forums_bp = Blueprint("forums", __name__, url_prefix="/api/forums")
 
 
-def is_course_member(cursor, user_id, role, course_id):
+def is_course_member(cursor, user_id, role, course_code):
     if role == "admin":
         return True
 
@@ -17,9 +17,9 @@ def is_course_member(cursor, user_id, role, course_id):
             """
             SELECT lecturerId
             FROM Teaching
-            WHERE lecturerId = %s AND courseId = %s
+            WHERE lecturerId = %s AND courseCode = %s
             """,
-            (user_id, course_id)
+            (user_id, course_code)
         )
         return cursor.fetchone() is not None
 
@@ -28,18 +28,18 @@ def is_course_member(cursor, user_id, role, course_id):
             """
             SELECT studentId
             FROM Enrollment
-            WHERE studentId = %s AND courseId = %s
+            WHERE studentId = %s AND courseCode = %s
             """,
-            (user_id, course_id)
+            (user_id, course_code)
         )
         return cursor.fetchone() is not None
 
     return False
 
 
-@forums_bp.route("/course/<int:course_id>", methods=["GET"])
+@forums_bp.route("/course/<string:course_code>", methods=["GET"])
 @jwt_required()
-def get_forums_for_course(course_id):
+def get_forums_for_course(course_code: str):
     connection = None
     cursor = None
 
@@ -48,40 +48,42 @@ def get_forums_for_course(course_id):
         current_role = claims.get("role")
         current_user_id = int(get_jwt_identity())
 
+        course_code = course_code.upper().strip()
+
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
             """
-            SELECT courseId, courseCode, courseName
+            SELECT courseCode, courseName
             FROM Courses
-            WHERE courseId = %s
+            WHERE courseCode = %s
             """,
-            (course_id,)
+            (course_code,)
         )
         course = cursor.fetchone()
 
         if not course:
             return error_response("Course not found", 404)
 
-        if not is_course_member(cursor, current_user_id, current_role, course_id):
+        if not is_course_member(cursor, current_user_id, current_role, course_code):
             return error_response("You are not allowed to view forums for this course", 403)
 
         cursor.execute(
             """
             SELECT
                 f.forumId,
-                f.courseId,
+                f.courseCode,
                 f.title,
                 f.createdByUserId,
                 u.fullName AS createdByName,
                 f.createdAt
             FROM Forums f
             JOIN Users u ON f.createdByUserId = u.userId
-            WHERE f.courseId = %s
+            WHERE f.courseCode = %s
             ORDER BY f.createdAt DESC
             """,
-            (course_id,)
+            (course_code,)
         )
         forums = cursor.fetchall()
 
@@ -103,9 +105,9 @@ def get_forums_for_course(course_id):
         close_db(connection, cursor)
 
 
-@forums_bp.route("/course/<int:course_id>", methods=["POST"])
+@forums_bp.route("/course/<string:course_code>", methods=["POST"])
 @jwt_required()
-def create_forum(course_id):
+def create_forum(course_code: str):
     connection = None
     cursor = None
 
@@ -113,6 +115,8 @@ def create_forum(course_id):
         claims = get_jwt()
         current_role = claims.get("role")
         current_user_id = int(get_jwt_identity())
+
+        course_code = course_code.upper().strip()
 
         data = request.get_json()
         if not data:
@@ -127,26 +131,26 @@ def create_forum(course_id):
 
         cursor.execute(
             """
-            SELECT courseId, courseCode, courseName
+            SELECT courseCode, courseName
             FROM Courses
-            WHERE courseId = %s
+            WHERE courseCode = %s
             """,
-            (course_id,)
+            (course_code,)
         )
         course = cursor.fetchone()
 
         if not course:
             return error_response("Course not found", 404)
 
-        if not is_course_member(cursor, current_user_id, current_role, course_id):
+        if not is_course_member(cursor, current_user_id, current_role, course_code):
             return error_response("You are not allowed to create a forum for this course", 403)
 
         cursor.execute(
             """
-            INSERT INTO Forums (courseId, title, createdByUserId)
+            INSERT INTO Forums (courseCode, title, createdByUserId)
             VALUES (%s, %s, %s)
             """,
-            (course_id, title, current_user_id)
+            (course_code, title, current_user_id)
         )
 
         forum_id = cursor.lastrowid
@@ -157,7 +161,7 @@ def create_forum(course_id):
             {
                 "forum": {
                     "forumId": forum_id,
-                    "courseId": course_id,
+                    "courseCode": course_code,
                     "title": title,
                     "createdByUserId": current_user_id
                 }

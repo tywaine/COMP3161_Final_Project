@@ -24,7 +24,6 @@ def create_course():
             return error_response("Only admins can create courses", 403)
 
         data = request.get_json()
-
         if not data:
             return error_response("Request body must be JSON")
 
@@ -34,53 +33,52 @@ def create_course():
         lecturer_id = data.get("lecturerId")
 
         if not course_code or not course_name or not lecturer_id:
-            return error_response(
-                "courseCode, courseName, and lecturerId are required"
-            )
+            return error_response("courseCode, courseName, and lecturerId are required")
+
+        course_code = course_code.upper().strip()
 
         try:
             lecturer_id = int(lecturer_id)
         except (TypeError, ValueError):
             return error_response("lecturerId must be a number")
 
-        if not re.fullmatch(r"[A-Z]{4}[0-3][0-9]{3}", course_code.upper()):
-            return error_response("courseCode must be 4 letters followed by 4 digits starting with 0-3 (e.g. BIOL1000)")
+        if not re.fullmatch(r"[A-Z]{4}[0-3][0-9]{3}", course_code):
+            return error_response(
+                "courseCode must be 4 letters followed by 4 digits starting with 0-3, e.g. BIOL1000"
+            )
 
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
-        # Check if course code already exists
-        cursor.execute("SELECT courseId FROM Courses WHERE courseCode = %s", (course_code,))
-        existing_course = cursor.fetchone()
-        if existing_course:
+        cursor.execute(
+            "SELECT courseCode FROM Courses WHERE courseCode = %s",
+            (course_code,)
+        )
+        if cursor.fetchone():
             return error_response("courseCode already exists", 409)
 
-        # Check if lecturer exists
-        cursor.execute("SELECT userId FROM Lecturers WHERE userId = %s", (lecturer_id,))
-        lecturer = cursor.fetchone()
-        if not lecturer:
+        cursor.execute(
+            "SELECT userId FROM Lecturers WHERE userId = %s",
+            (lecturer_id,)
+        )
+        if not cursor.fetchone():
             return error_response("Lecturer not found", 404)
 
-        # Insert into Courses
-        insert_course_sql = """
+        cursor.execute(
+            """
             INSERT INTO Courses (courseCode, courseName, description, createdByAdminId)
             VALUES (%s, %s, %s, %s)
-        """
-        cursor.execute(insert_course_sql, (
-            course_code,
-            course_name,
-            description,
-            current_user_id
-        ))
+            """,
+            (course_code, course_name, description, current_user_id)
+        )
 
-        course_id = cursor.lastrowid
-
-        # Insert into Teaching
-        insert_teaching_sql = """
-            INSERT INTO Teaching (lecturerId, courseId)
+        cursor.execute(
+            """
+            INSERT INTO Teaching (lecturerId, courseCode)
             VALUES (%s, %s)
-        """
-        cursor.execute(insert_teaching_sql, (lecturer_id, course_id))
+            """,
+            (lecturer_id, course_code)
+        )
 
         connection.commit()
 
@@ -88,7 +86,6 @@ def create_course():
             "Course created successfully",
             {
                 "course": {
-                    "courseId": course_id,
                     "courseCode": course_code,
                     "courseName": course_name,
                     "description": description,
@@ -119,9 +116,9 @@ def get_all_courses():
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
-        get_courses_sql = """
+        cursor.execute(
+            """
             SELECT
-                c.courseId,
                 c.courseCode,
                 c.courseName,
                 c.description,
@@ -130,17 +127,14 @@ def get_all_courses():
                 t.lecturerId,
                 u.fullName AS lecturerName
             FROM Courses c
-            LEFT JOIN Teaching t ON c.courseId = t.courseId
+            LEFT JOIN Teaching t ON c.courseCode = t.courseCode
             LEFT JOIN Users u ON t.lecturerId = u.userId
             ORDER BY c.courseCode
-        """
-        cursor.execute(get_courses_sql)
+            """
+        )
         courses = cursor.fetchall()
 
-        return success_response(
-            "Courses retrieved successfully",
-            {"courses": courses}
-        )
+        return success_response("Courses retrieved successfully", {"courses": courses})
 
     except Error as e:
         return error_response("Database error", 500, e)
@@ -162,14 +156,16 @@ def get_courses_for_student(student_id):
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
-        cursor.execute("SELECT userId FROM Students WHERE userId = %s", (student_id,))
-        student = cursor.fetchone()
-        if not student:
+        cursor.execute(
+            "SELECT userId FROM Students WHERE userId = %s",
+            (student_id,)
+        )
+        if not cursor.fetchone():
             return error_response("Student not found", 404)
 
-        get_student_courses_sql = """
+        cursor.execute(
+            """
             SELECT
-                c.courseId,
                 c.courseCode,
                 c.courseName,
                 c.description,
@@ -179,20 +175,19 @@ def get_courses_for_student(student_id):
                 t.lecturerId,
                 u.fullName AS lecturerName
             FROM Enrollment e
-            JOIN Courses c ON e.courseId = c.courseId
-            LEFT JOIN Teaching t ON c.courseId = t.courseId
+            JOIN Courses c ON e.courseCode = c.courseCode
+            LEFT JOIN Teaching t ON c.courseCode = t.courseCode
             LEFT JOIN Users u ON t.lecturerId = u.userId
             WHERE e.studentId = %s
             ORDER BY c.courseCode
-        """
-        cursor.execute(get_student_courses_sql, (student_id,))
+            """,
+            (student_id,)
+        )
         courses = cursor.fetchall()
 
         return success_response(
             f"Student courses for id# {student_id} retrieved successfully",
-            {
-                "courses": courses
-            }
+            {"courses": courses}
         )
 
     except Error as e:
@@ -215,14 +210,16 @@ def get_courses_for_lecturer(lecturer_id):
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
-        cursor.execute("SELECT userId FROM Lecturers WHERE userId = %s", (lecturer_id,))
-        lecturer = cursor.fetchone()
-        if not lecturer:
+        cursor.execute(
+            "SELECT userId FROM Lecturers WHERE userId = %s",
+            (lecturer_id,)
+        )
+        if not cursor.fetchone():
             return error_response("Lecturer not found", 404)
 
-        get_lecturer_courses_sql = """
+        cursor.execute(
+            """
             SELECT
-                c.courseId,
                 c.courseCode,
                 c.courseName,
                 c.description,
@@ -230,18 +227,17 @@ def get_courses_for_lecturer(lecturer_id):
                 c.createdAt,
                 t.lecturerId
             FROM Teaching t
-            JOIN Courses c ON t.courseId = c.courseId
+            JOIN Courses c ON t.courseCode = c.courseCode
             WHERE t.lecturerId = %s
             ORDER BY c.courseCode
-        """
-        cursor.execute(get_lecturer_courses_sql, (lecturer_id,))
+            """,
+            (lecturer_id,)
+        )
         courses = cursor.fetchall()
 
         return success_response(
             f"Lecturer courses for id# {lecturer_id} retrieved successfully",
-            {
-                "courses": courses
-            }
+            {"courses": courses}
         )
 
     except Error as e:
@@ -254,9 +250,9 @@ def get_courses_for_lecturer(lecturer_id):
         close_db(connection, cursor)
 
 
-@courses_bp.route("/<int:course_id>/register", methods=["POST"])
+@courses_bp.route("/<string:course_code>/register", methods=["POST"])
 @jwt_required()
-def register_for_course(course_id):
+def register_for_course(course_code: str):
     connection = None
     cursor = None
 
@@ -268,41 +264,42 @@ def register_for_course(course_id):
         if current_role != "student":
             return error_response("Only students can register for courses", 403)
 
+        course_code = course_code.upper().strip()
+
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
-        # Check if student exists
         cursor.execute(
             "SELECT userId FROM Students WHERE userId = %s",
             (current_user_id,)
         )
-        student = cursor.fetchone()
-        if not student:
+        if not cursor.fetchone():
             return error_response("Student not found", 404)
 
-        # Check if course exists
         cursor.execute(
-            "SELECT courseId, courseCode, courseName FROM Courses WHERE courseId = %s",
-            (course_id,)
+            """
+            SELECT courseCode, courseName
+            FROM Courses
+            WHERE courseCode = %s
+            """,
+            (course_code,)
         )
         course = cursor.fetchone()
+
         if not course:
             return error_response("Course not found", 404)
 
-        # Check if already enrolled
         cursor.execute(
             """
-            SELECT studentId, courseId
+            SELECT studentId, courseCode
             FROM Enrollment
-            WHERE studentId = %s AND courseId = %s
+            WHERE studentId = %s AND courseCode = %s
             """,
-            (current_user_id, course_id)
+            (current_user_id, course_code)
         )
-        existing_enrollment = cursor.fetchone()
-        if existing_enrollment:
+        if cursor.fetchone():
             return error_response("Student is already registered for this course", 409)
 
-        # Enforce max 6 courses per student
         cursor.execute(
             """
             SELECT COUNT(*) AS courseCount
@@ -316,13 +313,12 @@ def register_for_course(course_id):
         if course_count_result["courseCount"] >= 6:
             return error_response("Student cannot register for more than 6 courses", 400)
 
-        # Register student
         cursor.execute(
             """
-            INSERT INTO Enrollment (studentId, courseId)
+            INSERT INTO Enrollment (studentId, courseCode)
             VALUES (%s, %s)
             """,
-            (current_user_id, course_id)
+            (current_user_id, course_code)
         )
 
         connection.commit()
@@ -332,7 +328,6 @@ def register_for_course(course_id):
             {
                 "enrollment": {
                     "studentId": current_user_id,
-                    "courseId": course["courseId"],
                     "courseCode": course["courseCode"],
                     "courseName": course["courseName"]
                 }

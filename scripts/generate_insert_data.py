@@ -44,46 +44,44 @@ def write_insert_batches(file_obj, table_name, columns, rows, batch_size=1000):
 
 def generate_admins():
     admins = []
+
     for i in range(NUM_ADMINS):
         user_id = ADMIN_START_ID + i
-        full_name = fake.name()
-        email = f"admin{i + 1}@school.edu"
         admins.append({
             "userId": user_id,
-            "fullName": full_name,
-            "email": email,
+            "fullName": fake.name(),
+            "email": f"admin{i + 1}@school.edu",
             "role": "admin"
         })
+
     return admins
 
 
 def generate_lecturers():
     lecturers = []
+
     for i in range(NUM_LECTURERS):
         user_id = LECTURER_START_ID + i
-        full_name = fake.name()
-        email = f"lecturer{i + 1}@school.edu"
-        department = random.choice(DEPARTMENTS)
         lecturers.append({
             "userId": user_id,
-            "fullName": full_name,
-            "email": email,
+            "fullName": fake.name(),
+            "email": f"lecturer{i + 1}@school.edu",
             "role": "lecturer",
-            "department": department
+            "department": random.choice(DEPARTMENTS)
         })
+
     return lecturers
 
 
 def generate_students():
     students = []
+
     for i in range(NUM_STUDENTS):
         user_id = STUDENT_START_ID + i
-        full_name = fake.name()
-        email = f"student{i + 1}@school.edu"
         students.append({
             "userId": user_id,
-            "fullName": full_name,
-            "email": email,
+            "fullName": fake.name(),
+            "email": f"student{i + 1}@school.edu",
             "role": "student"
         })
 
@@ -213,26 +211,22 @@ SUBJECT_COURSES = {
 
 
 def make_course_code_and_name(existing_codes, used_titles):
-    """
-    Format:
-    4 letters + 4 digits
-    first digit indicates year level: 0, 1, 2, or 3
-    examples:
-    COMP1210, BIOL0000, PHYS2190, ECON3100
-    """
     while True:
         prefix = random.choice(COURSE_PREFIXES)
         first_digit = random.randint(0, 3)
 
-        # Pick a name from that subject + year level
-        available_names = [n for n in SUBJECT_COURSES[prefix][first_digit] if n not in used_titles]
+        available_names = [
+            name for name in SUBJECT_COURSES[prefix][first_digit]
+            if name not in used_titles
+        ]
+
         if not available_names:
             continue
 
         name = random.choice(available_names)
-
         last_three = f"{random.randint(0, 999):03d}"
         code = f"{prefix}{first_digit}{last_three}"
+
         if code not in existing_codes:
             existing_codes.add(code)
             used_titles.add(name)
@@ -247,19 +241,14 @@ def generate_courses(admin_ids):
     for _ in range(NUM_COURSES):
         code, name = make_course_code_and_name(existing_codes, used_titles)
 
-        description = f"{name} - {code}"
-
-        created_by_admin_id = random.choice(admin_ids)
-
         courses.append({
             "courseCode": code,
             "courseName": name,
-            "description": description,
-            "createdByAdminId": created_by_admin_id
+            "description": f"{name} - {code}",
+            "createdByAdminId": random.choice(admin_ids)
         })
 
     return courses
-
 
 
 def assign_teaching(courses, lecturer_ids):
@@ -269,23 +258,28 @@ def assign_teaching(courses, lecturer_ids):
     - no lecturer teaches more than 5 courses
     - each course has exactly 1 lecturer
     """
-    num_courses = len(courses)
     lecturer_course_counts = {lecturer_id: 0 for lecturer_id in lecturer_ids}
     teaching = []
 
-    course_indexes = list(range(num_courses))
+    course_indexes = list(range(len(courses)))
     random.shuffle(course_indexes)
 
     for lecturer_id in lecturer_ids:
         if not course_indexes:
             break
+
         course_index = course_indexes.pop()
         teaching.append((lecturer_id, course_index))
         lecturer_course_counts[lecturer_id] += 1
 
     for course_index in course_indexes:
-        available = [lid for lid in lecturer_ids if lecturer_course_counts[lid] < 5]
-        lecturer_id = random.choice(available)
+        available_lecturers = [
+            lecturer_id
+            for lecturer_id in lecturer_ids
+            if lecturer_course_counts[lecturer_id] < 5
+        ]
+
+        lecturer_id = random.choice(available_lecturers)
         teaching.append((lecturer_id, course_index))
         lecturer_course_counts[lecturer_id] += 1
 
@@ -293,38 +287,43 @@ def assign_teaching(courses, lecturer_ids):
     return teaching
 
 
-def assign_enrollments(student_ids, course_ids):
+def assign_enrollments(student_ids, course_codes):
     """
     Constraints:
     - each student has 3 to 6 courses
     - each course has at least 10 students
     """
     enrollments = set()
-    student_course_sets = {sid: set() for sid in student_ids}
+    student_course_sets = {student_id: set() for student_id in student_ids}
 
     shuffled_students = student_ids[:]
     random.shuffle(shuffled_students)
     pointer = 0
 
-    for course_id in course_ids:
+    for course_code in course_codes:
         assigned = 0
+
         while assigned < 10:
             student_id = shuffled_students[pointer % len(shuffled_students)]
             pointer += 1
 
-            if len(student_course_sets[student_id]) < 6 and course_id not in student_course_sets[student_id]:
-                student_course_sets[student_id].add(course_id)
-                enrollments.add((student_id, course_id))
+            if (
+                len(student_course_sets[student_id]) < 6
+                and course_code not in student_course_sets[student_id]
+            ):
+                student_course_sets[student_id].add(course_code)
+                enrollments.add((student_id, course_code))
                 assigned += 1
 
     for student_id in student_ids:
         target_count = random.randint(3, 6)
 
         while len(student_course_sets[student_id]) < target_count:
-            course_id = random.choice(course_ids)
-            if course_id not in student_course_sets[student_id]:
-                student_course_sets[student_id].add(course_id)
-                enrollments.add((student_id, course_id))
+            course_code = random.choice(course_codes)
+
+            if course_code not in student_course_sets[student_id]:
+                student_course_sets[student_id].add(course_code)
+                enrollments.add((student_id, course_code))
 
     return sorted(enrollments, key=lambda x: (x[0], x[1]))
 
@@ -334,24 +333,24 @@ def main():
     lecturers = generate_lecturers()
     students = generate_students()
 
-    admin_ids = [a["userId"] for a in admins]
-    lecturer_ids = [l["userId"] for l in lecturers]
-    student_ids = [s["userId"] for s in students]
+    admin_ids = [admin["userId"] for admin in admins]
+    lecturer_ids = [lecturer["userId"] for lecturer in lecturers]
+    student_ids = [student["userId"] for student in students]
 
     courses = generate_courses(admin_ids)
-
-    temp_course_ids = list(range(1, NUM_COURSES + 1))
+    course_codes = [course["courseCode"] for course in courses]
 
     teaching_pairs = assign_teaching(courses, lecturer_ids)
-    enrollments = assign_enrollments(student_ids, temp_course_ids)
+    enrollments = assign_enrollments(student_ids, course_codes)
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write("USE course_management;\n\n")
 
         admin_user_rows = [
-            f"({a['userId']}, '{esc(a['fullName'])}', '{esc(PASSWORD_HASH)}', '{a['email']}', '{a['role']}', NOW())"
-            for a in admins
+            f"({admin['userId']}, '{esc(admin['fullName'])}', '{esc(PASSWORD_HASH)}', '{admin['email']}', '{admin['role']}', NOW())"
+            for admin in admins
         ]
+
         write_insert_batches(
             f,
             "Users",
@@ -359,13 +358,23 @@ def main():
             admin_user_rows
         )
 
-        admin_rows = [f"({a['userId']})" for a in admins]
-        write_insert_batches(f, "Admins", "userId", admin_rows)
+        admin_rows = [
+            f"({admin['userId']})"
+            for admin in admins
+        ]
+
+        write_insert_batches(
+            f,
+            "Admins",
+            "userId",
+            admin_rows
+        )
 
         lecturer_user_rows = [
-            f"({l['userId']}, '{esc(l['fullName'])}', '{esc(PASSWORD_HASH)}', '{l['email']}', '{l['role']}', NOW())"
-            for l in lecturers
+            f"({lecturer['userId']}, '{esc(lecturer['fullName'])}', '{esc(PASSWORD_HASH)}', '{lecturer['email']}', '{lecturer['role']}', NOW())"
+            for lecturer in lecturers
         ]
+
         write_insert_batches(
             f,
             "Users",
@@ -374,15 +383,22 @@ def main():
         )
 
         lecturer_rows = [
-            f"({l['userId']}, '{esc(l['department'])}')"
-            for l in lecturers
+            f"({lecturer['userId']}, '{esc(lecturer['department'])}')"
+            for lecturer in lecturers
         ]
-        write_insert_batches(f, "Lecturers", "userId, department", lecturer_rows)
+
+        write_insert_batches(
+            f,
+            "Lecturers",
+            "userId, department",
+            lecturer_rows
+        )
 
         student_user_rows = [
-            f"({s['userId']}, '{esc(s['fullName'])}', '{esc(PASSWORD_HASH)}', '{s['email']}', '{s['role']}', NOW())"
-            for s in students
+            f"({student['userId']}, '{esc(student['fullName'])}', '{esc(PASSWORD_HASH)}', '{student['email']}', '{student['role']}', NOW())"
+            for student in students
         ]
+
         write_insert_batches(
             f,
             "Users",
@@ -392,9 +408,10 @@ def main():
         )
 
         student_rows = [
-            f"({s['userId']})"
-            for s in students
+            f"({student['userId']})"
+            for student in students
         ]
+
         write_insert_batches(
             f,
             "Students",
@@ -404,9 +421,10 @@ def main():
         )
 
         course_rows = [
-            f"('{c['courseCode']}', '{esc(c['courseName'])}', '{esc(c['description'])}', {c['createdByAdminId']}, NOW())"
-            for c in courses
+            f"('{course['courseCode']}', '{esc(course['courseName'])}', '{esc(course['description'])}', {course['createdByAdminId']}, NOW())"
+            for course in courses
         ]
+
         write_insert_batches(
             f,
             "Courses",
@@ -414,25 +432,32 @@ def main():
             course_rows
         )
 
-        teaching_rows = [
-            f"({lecturer_id}, {course_index + 1})"
-            for lecturer_id, course_index in teaching_pairs
-        ]
+        teaching_rows = []
+
+        for lecturer_id, course_index in teaching_pairs:
+            course = courses[course_index]
+            course_code = course["courseCode"]
+
+            teaching_rows.append(
+                f"({lecturer_id}, '{course_code}')"
+            )
+
         write_insert_batches(
             f,
             "Teaching",
-            "lecturerId, courseId",
+            "lecturerId, courseCode",
             teaching_rows
         )
 
         enrollment_rows = [
-            f"({student_id}, {course_id}, NULL)"
-            for student_id, course_id in enrollments
+            f"({student_id}, '{course_code}', NULL)"
+            for student_id, course_code in enrollments
         ]
+
         write_insert_batches(
             f,
             "Enrollment",
-            "studentId, courseId, finalGrade",
+            "studentId, courseCode, finalGrade",
             enrollment_rows,
             batch_size=3000
         )

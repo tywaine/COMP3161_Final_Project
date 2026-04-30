@@ -2,16 +2,14 @@ USE course_management;
 
 CREATE OR REPLACE VIEW CoursesWith50OrMoreStudents AS
 SELECT
-    c.courseId,
     c.courseCode,
     c.courseName,
     c.description,
     COUNT(e.studentId) AS studentCount
 FROM Courses c
 JOIN Enrollment e
-    ON c.courseId = e.courseId
+    ON c.courseCode = e.courseCode
 GROUP BY
-    c.courseId,
     c.courseCode,
     c.courseName,
     c.description
@@ -23,7 +21,7 @@ SELECT
     s.userId AS studentId,
     u.fullName,
     u.email,
-    COUNT(e.courseId) AS courseCount
+    COUNT(e.courseCode) AS courseCount
 FROM Students s
 JOIN Users u
     ON s.userId = u.userId
@@ -33,7 +31,7 @@ GROUP BY
     s.userId,
     u.fullName,
     u.email
-HAVING COUNT(e.courseId) >= 5;
+HAVING COUNT(e.courseCode) >= 5;
 
 
 CREATE OR REPLACE VIEW LecturersWith3OrMoreCourses AS
@@ -41,7 +39,7 @@ SELECT
     l.userId AS lecturerId,
     u.fullName,
     u.email,
-    COUNT(t.courseId) AS courseCount
+    COUNT(t.courseCode) AS courseCount
 FROM Lecturers l
 JOIN Users u
     ON l.userId = u.userId
@@ -51,21 +49,19 @@ GROUP BY
     l.userId,
     u.fullName,
     u.email
-HAVING COUNT(t.courseId) >= 3;
+HAVING COUNT(t.courseCode) >= 3;
 
 
 CREATE OR REPLACE VIEW Top10MostEnrolledCourses AS
 SELECT
-    c.courseId,
     c.courseCode,
     c.courseName,
     c.description,
     COUNT(e.studentId) AS studentCount
 FROM Courses c
 JOIN Enrollment e
-    ON c.courseId = e.courseId
+    ON c.courseCode = e.courseCode
 GROUP BY
-    c.courseId,
     c.courseCode,
     c.courseName,
     c.description
