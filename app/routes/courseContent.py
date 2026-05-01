@@ -87,6 +87,22 @@ def create_section(course_code):
 
         cursor.execute(
             """
+            SELECT 1
+            FROM Sections
+            WHERE courseCode = %s
+              AND position = %s
+            """,
+            (course_code, position)
+        )
+
+        if cursor.fetchone():
+            return error_response(
+                "A section with this position already exists for this course",
+                409
+            )
+
+        cursor.execute(
+            """
             INSERT INTO Sections (courseCode, title, position)
             VALUES (%s, %s, %s)
             """,
@@ -172,7 +188,7 @@ def add_section_item(section_id):
         if not section:
             return error_response("Section not found", 404)
 
-        if not is_assigned_lecturer(cursor, current_user_id, section["courseId"]):
+        if not is_assigned_lecturer(cursor, current_user_id, section["courseCode"]):
             return error_response("Only the assigned lecturer can add content to this course", 403)
 
         cursor.execute(

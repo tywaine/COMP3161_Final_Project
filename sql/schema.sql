@@ -139,7 +139,9 @@ CREATE TABLE Sections (
     title VARCHAR(150) NOT NULL,
     position INT NOT NULL,
     FOREIGN KEY (courseCode) REFERENCES Courses(courseCode)
-        ON DELETE CASCADE ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE,
+
+    CONSTRAINT unique_course_position UNIQUE (courseCode, position)
 );
 
 CREATE TABLE SectionItems (
