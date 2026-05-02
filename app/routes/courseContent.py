@@ -1,6 +1,7 @@
 from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from mysql.connector import Error
+from datetime import datetime
 
 from app.db import get_db, close_db
 from app.utils.response import error_response, success_response
@@ -11,43 +12,51 @@ course_content_bp = Blueprint(
     url_prefix="/api/course-content"
 )
 
+def format_db_row(row):
+    """Helper to convert database row values to JSON-serializable formats."""
+    if not row:
+        return row
+    for key, value in row.items():
+        if isinstance(value, datetime):
+            row[key] = value.strftime('%Y-%m-%d %H:%M:%S')
+    return row
 
-def is_assigned_lecturer(cursor, lecturer_id, course_code):
+def is_assigned_lecturer(cursor, lecturer_id, course_id):
     cursor.execute(
         """
         SELECT lecturerId
         FROM Teaching
-        WHERE lecturerId = %s AND courseCode = %s
+        WHERE lecturerId = %s AND courseId = %s
         """,
-        (lecturer_id, course_code)
+        (lecturer_id, course_id)
     )
     return cursor.fetchone() is not None
 
 
-def is_course_member(cursor, user_id, role, course_code):
+def is_course_member(cursor, user_id, role, course_id):
     if role == "admin":
         return True
 
     if role == "lecturer":
-        return is_assigned_lecturer(cursor, user_id, course_code)
+        return is_assigned_lecturer(cursor, user_id, course_id)
 
     if role == "student":
         cursor.execute(
             """
             SELECT studentId
             FROM Enrollment
-            WHERE studentId = %s AND courseCode = %s
+            WHERE studentId = %s AND courseId = %s
             """,
-            (user_id, course_code)
+            (user_id, course_id)
         )
         return cursor.fetchone() is not None
 
     return False
 
 
-@course_content_bp.route("/course/<string:course_code>/sections", methods=["POST"])
+@course_content_bp.route("/course/<int:course_id>/sections", methods=["POST"])
 @jwt_required()
-def create_section(course_code):
+def create_section(course_id):
     connection = None
     cursor = None
 
@@ -55,10 +64,9 @@ def create_section(course_code):
         claims = get_jwt()
         current_role = claims.get("role")
         current_user_id = int(get_jwt_identity())
-        course_code = course_code.upper().strip()
 
-        if current_role != "lecturer":
-            return error_response("Only lecturers can create sections", 403)
+        if current_role != "lecturer" and current_role != "admin":
+            return error_response("Only lecturers or admins can create sections", 403)
 
         data = request.get_json()
         if not data:
@@ -74,25 +82,25 @@ def create_section(course_code):
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT courseCode, courseName FROM Courses WHERE courseCode = %s",
-            (course_code,)
+            "SELECT courseId, courseName FROM Courses WHERE courseId = %s",
+            (course_id,)
         )
         course = cursor.fetchone()
 
         if not course:
             return error_response("Course not found", 404)
 
-        if not is_assigned_lecturer(cursor, current_user_id, course_code):
+        if current_role == "lecturer" and not is_assigned_lecturer(cursor, current_user_id, course_id):
             return error_response("Only the assigned lecturer can create sections for this course", 403)
 
         cursor.execute(
             """
             SELECT 1
             FROM Sections
-            WHERE courseCode = %s
+            WHERE courseId = %s
               AND position = %s
             """,
-            (course_code, position)
+            (course_id, position)
         )
 
         if cursor.fetchone():
@@ -103,10 +111,10 @@ def create_section(course_code):
 
         cursor.execute(
             """
-            INSERT INTO Sections (courseCode, title, position)
+            INSERT INTO Sections (courseId, title, position)
             VALUES (%s, %s, %s)
             """,
-            (course_code, title, position)
+            (course_id, title, position)
         )
 
         section_id = cursor.lastrowid
@@ -117,7 +125,7 @@ def create_section(course_code):
             {
                 "section": {
                     "sectionId": section_id,
-                    "courseCode": course_code,
+                    "courseId": course_id,
                     "title": title,
                     "position": position
                 }
@@ -146,8 +154,8 @@ def add_section_item(section_id):
         current_role = claims.get("role")
         current_user_id = int(get_jwt_identity())
 
-        if current_role != "lecturer":
-            return error_response("Only lecturers can add course content", 403)
+        if current_role != "lecturer" and current_role != "admin":
+            return error_response("Only lecturers or admins can add course content", 403)
 
         data = request.get_json()
         if not data:
@@ -173,12 +181,12 @@ def add_section_item(section_id):
             """
             SELECT
                 s.sectionId,
-                s.courseCode,
+                s.courseId,
                 s.title AS sectionTitle,
-                c.courseCode,
+                c.courseId,
                 c.courseName
             FROM Sections s
-            JOIN Courses c ON s.courseCode = c.courseCode
+            JOIN Courses c ON s.courseId = c.courseId
             WHERE s.sectionId = %s
             """,
             (section_id,)
@@ -188,7 +196,7 @@ def add_section_item(section_id):
         if not section:
             return error_response("Section not found", 404)
 
-        if not is_assigned_lecturer(cursor, current_user_id, section["courseCode"]):
+        if current_role == "lecturer" and not is_assigned_lecturer(cursor, current_user_id, section["courseId"]):
             return error_response("Only the assigned lecturer can add content to this course", 403)
 
         cursor.execute(
@@ -238,9 +246,9 @@ def add_section_item(section_id):
         close_db(connection, cursor)
 
 
-@course_content_bp.route("/course/<string:course_code>", methods=["GET"])
+@course_content_bp.route("/course/<int:course_id>", methods=["GET"])
 @jwt_required()
-def get_course_content(course_code: str):
+def get_course_content(course_id: int):
     connection = None
     cursor = None
 
@@ -248,38 +256,37 @@ def get_course_content(course_code: str):
         claims = get_jwt()
         current_role = claims.get("role")
         current_user_id = int(get_jwt_identity())
-        course_code = course_code.upper().strip()
 
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
             """
-            SELECT courseCode, courseName, description
+            SELECT courseId, courseCode, courseName, description
             FROM Courses
-            WHERE courseCode = %s
+            WHERE courseId = %s
             """,
-            (course_code,)
+            (course_id,)
         )
         course = cursor.fetchone()
 
         if not course:
             return error_response("Course not found", 404)
 
-        if not is_course_member(cursor, current_user_id, current_role, course_code):
+        if not is_course_member(cursor, current_user_id, current_role, course_id):
             return error_response("You are not allowed to view content for this course", 403)
 
         cursor.execute(
             """
             SELECT s.sectionId,
-                   s.courseCode,
+                   s.courseId,
                    s.title,
                    s.position
             FROM Sections s
-            WHERE s.courseCode = %s
+            WHERE s.courseId = %s
             ORDER BY s.position, s.sectionId
             """,
-            (course_code,)
+            (course_id,)
         )
         sections = cursor.fetchall()
 
@@ -303,7 +310,7 @@ def get_course_content(course_code: str):
                 """,
                 (section["sectionId"],)
             )
-            section["items"] = cursor.fetchall()
+            section["items"] = [format_db_row(row) for row in cursor.fetchall()]
 
         return success_response(
             "Course content retrieved successfully",
