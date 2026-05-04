@@ -8,24 +8,25 @@ from app.utils.response import error_response, success_response
 members_bp = Blueprint("members", __name__, url_prefix="/api/members")
 
 
-@members_bp.route("/<int:course_id>", methods=["GET"])
+@members_bp.route("/<string:course_code>", methods=["GET"])
 @jwt_required()
-def get_course_members(course_id: int):
+def get_course_members(course_code: str):
     connection = None
     cursor = None
 
     try:
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
+        course_code = course_code.upper().strip()
 
         # Check if course exists
         cursor.execute(
             """
-            SELECT courseId, courseCode, courseName, description
+            SELECT courseCode, courseName, description
             FROM Courses
-            WHERE courseId = %s
+            WHERE courseCode = %s
             """,
-            (course_id,)
+            (course_code,)
         )
         course = cursor.fetchone()
 
@@ -42,9 +43,9 @@ def get_course_members(course_id: int):
                 'lecturer' AS role
             FROM Users u
             JOIN Teaching t ON u.userId = t.lecturerId
-            WHERE t.courseId = %s
+            WHERE t.courseCode = %s
             """,
-            (course_id,)
+            (course_code,)
         )
         lecturer = cursor.fetchone()
 
@@ -59,17 +60,12 @@ def get_course_members(course_id: int):
                 e.finalGrade
             FROM Users u
             JOIN Enrollment e ON u.userId = e.studentId
-            WHERE e.courseId = %s
+            WHERE e.courseCode = %s
             ORDER BY u.fullName
             """,
-            (course_id,)
+            (course_code,)
         )
         students = cursor.fetchall()
-
-        # Convert Decimals
-        for student in students:
-            if student.get("finalGrade") is not None:
-                student["finalGrade"] = float(student["finalGrade"])
 
         return success_response(
             "Course members retrieved successfully",
