@@ -17,12 +17,12 @@ def get_forum_course_and_membership(cursor, forum_id, user_id, role):
         """
         SELECT
             f.forumId,
-            f.courseCode,
+            f.courseId,
             f.title AS forumTitle,
             c.courseCode,
             c.courseName
         FROM Forums f
-        JOIN Courses c ON f.courseCode = c.courseCode
+        JOIN Courses c ON f.courseId = c.courseId
         WHERE f.forumId = %s
         """,
         (forum_id,)
@@ -40,9 +40,9 @@ def get_forum_course_and_membership(cursor, forum_id, user_id, role):
             """
             SELECT lecturerId
             FROM Teaching
-            WHERE lecturerId = %s AND courseCode = %s
+            WHERE lecturerId = %s AND courseId = %s
             """,
-            (user_id, forum["courseCode"])
+            (user_id, forum["courseId"])
         )
         return forum, cursor.fetchone() is not None
 
@@ -51,9 +51,9 @@ def get_forum_course_and_membership(cursor, forum_id, user_id, role):
             """
             SELECT studentId
             FROM Enrollment
-            WHERE studentId = %s AND courseCode = %s
+            WHERE studentId = %s AND courseId = %s
             """,
-            (user_id, forum["courseCode"])
+            (user_id, forum["courseId"])
         )
         return forum, cursor.fetchone() is not None
 
@@ -95,7 +95,7 @@ def get_threads_for_forum(forum_id):
                 dt.createdByUserId,
                 u.fullName AS createdByName,
                 dt.title,
-                dt.createdAt,
+                DATE_FORMAT(dt.createdAt, '%Y-%m-%d %H:%i:%s') AS createdAt,
                 (
                     SELECT COUNT(*)
                     FROM Posts p
@@ -230,7 +230,7 @@ def get_posts_for_thread(thread_id):
                 dt.threadId,
                 dt.title AS threadTitle,
                 dt.forumId,
-                f.courseCode
+                f.courseId
             FROM DiscussionThreads dt
             JOIN Forums f ON dt.forumId = f.forumId
             WHERE dt.threadId = %s
@@ -251,9 +251,9 @@ def get_posts_for_thread(thread_id):
                 """
                 SELECT lecturerId
                 FROM Teaching
-                WHERE lecturerId = %s AND courseCode = %s
+                WHERE lecturerId = %s AND courseId = %s
                 """,
-                (current_user_id, thread["courseCode"])
+                (current_user_id, thread["courseId"])
             )
             allowed = cursor.fetchone() is not None
         elif current_role == "student":
@@ -261,9 +261,9 @@ def get_posts_for_thread(thread_id):
                 """
                 SELECT studentId
                 FROM Enrollment
-                WHERE studentId = %s AND courseCode = %s
+                WHERE studentId = %s AND courseId = %s
                 """,
-                (current_user_id, thread["courseCode"])
+                (current_user_id, thread["courseId"])
             )
             allowed = cursor.fetchone() is not None
 
@@ -278,7 +278,7 @@ def get_posts_for_thread(thread_id):
                    u.fullName,
                    p.parentPostId,
                    p.content,
-                   p.createdAt
+                   DATE_FORMAT(p.createdAt, '%Y-%m-%d %H:%i:%s') AS createdAt
             FROM Posts p
                      JOIN Users u ON p.userId = u.userId
             WHERE p.threadId = %s
@@ -336,7 +336,7 @@ def reply_to_thread(thread_id):
                 dt.threadId,
                 dt.title AS threadTitle,
                 dt.forumId,
-                f.courseCode
+                f.courseId
             FROM DiscussionThreads dt
             JOIN Forums f ON dt.forumId = f.forumId
             WHERE dt.threadId = %s
@@ -357,9 +357,9 @@ def reply_to_thread(thread_id):
                 """
                 SELECT lecturerId
                 FROM Teaching
-                WHERE lecturerId = %s AND courseCode = %s
+                WHERE lecturerId = %s AND courseId = %s
                 """,
-                (current_user_id, thread["courseCode"])
+                (current_user_id, thread["courseId"])
             )
             allowed = cursor.fetchone() is not None
         elif current_role == "student":
@@ -367,9 +367,9 @@ def reply_to_thread(thread_id):
                 """
                 SELECT studentId
                 FROM Enrollment
-                WHERE studentId = %s AND courseCode = %s
+                WHERE studentId = %s AND courseId = %s
                 """,
-                (current_user_id, thread["courseCode"])
+                (current_user_id, thread["courseId"])
             )
             allowed = cursor.fetchone() is not None
 
