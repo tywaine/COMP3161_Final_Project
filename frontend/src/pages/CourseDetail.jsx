@@ -5,7 +5,7 @@ import api from '../api';
 import { Calendar, MessageSquare, Plus, FileText, Link as LinkIcon, Video, StickyNote, Download, User, Users, CheckCircle, Clock } from 'lucide-react';
 
 const CourseDetail = () => {
-  const { courseId } = useParams();
+  const { courseCode } = useParams();
   const { user } = useContext(AuthContext);
   
   const [activeTab, setActiveTab] = useState('content');
@@ -26,19 +26,22 @@ const CourseDetail = () => {
   const [newItem, setNewItem] = useState({ title: '', contentType: 'file', contentUrl: '', description: '' });
 
   useEffect(() => {
-    fetchCourseContent();
-    fetchAssignments();
-    fetchForums();
-    fetchEvents();
-    fetchMembers();
+    if (!courseCode) return;
+
+    void fetchCourseContent();
+    void fetchAssignments();
+    void fetchForums();
+    void fetchEvents();
+    void fetchMembers();
+
     if (user?.role === 'student') {
-      fetchMySubmissions();
+      void fetchMySubmissions();
     }
-  }, [courseId, user]);
+}, [courseCode, user]);
 
   const fetchCourseContent = async () => {
     try {
-      const res = await api.get(`/course-content/course/${courseId}`);
+      const res = await api.get(`/course-content/course/${courseCode}`);
       setCourse(res.data.course);
       setSections(res.data.sections || []);
     } catch (err) { console.error(err); }
@@ -46,35 +49,35 @@ const CourseDetail = () => {
 
   const fetchAssignments = async () => {
     try {
-      const res = await api.get(`/assignments/course/${courseId}`);
+      const res = await api.get(`/assignments/course/${courseCode}`);
       setAssignments(res.data.assignments || []);
     } catch (err) { console.error(err); }
   };
 
   const fetchMySubmissions = async () => {
     try {
-      const res = await api.get(`/assignments/course/${courseId}/my-submissions`);
+      const res = await api.get(`/assignments/course/${courseCode}/my-submissions`);
       setMySubmissions(res.data.submissions || []);
     } catch (err) { console.error(err); }
   };
 
   const fetchForums = async () => {
     try {
-      const res = await api.get(`/forums/course/${courseId}`);
+      const res = await api.get(`/forums/course/${courseCode}`);
       setForums(res.data.forums || []);
     } catch (err) { console.error(err); }
   };
 
   const fetchEvents = async () => {
     try {
-      const res = await api.get(`/calendar-events/course/${courseId}`);
+      const res = await api.get(`/calendar-events/course/${courseCode}`);
       setEvents(res.data.events || []);
     } catch (err) { console.error(err); }
   };
 
   const fetchMembers = async () => {
     try {
-      const res = await api.get(`/members/${courseId}`);
+      const res = await api.get(`/members/${courseCode}`);
       setMembers(res.data);
     } catch (err) { console.error(err); }
   };
@@ -83,10 +86,10 @@ const CourseDetail = () => {
   const handleAddSection = async (e) => {
     e.preventDefault();
     try {
-      await api.post(`/course-content/course/${courseId}/sections`, { title: newSectionTitle, position: sections.length + 1 });
+      await api.post(`/course-content/course/${courseCode}/sections`, { title: newSectionTitle, position: sections.length + 1 });
       setNewSectionTitle('');
       setShowAddSection(false);
-      fetchCourseContent();
+      await fetchCourseContent();
     } catch (err) { alert('Failed to add section'); }
   };
 
@@ -96,7 +99,7 @@ const CourseDetail = () => {
       await api.post(`/course-content/sections/${sectionId}/items`, newItem);
       setNewItem({ title: '', contentType: 'file', contentUrl: '', description: '' });
       setShowAddItem(null);
-      fetchCourseContent();
+      await fetchCourseContent();
     } catch (err) { alert('Failed to add item'); }
   };
 

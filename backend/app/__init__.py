@@ -3,15 +3,15 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from .config import Config
 
-from app.routes.auth import auth_bp
-from app.routes.courses import courses_bp
-from app.routes.calendarEvents import calendar_events_bp
-from app.routes.forums import forums_bp
-from app.routes.discussionThreads import discussion_threads_bp
-from app.routes.courseContent import course_content_bp
-from app.routes.assignments import assignments_bp
-from app.routes.reports import reports_bp
-from app.routes.members import members_bp
+from backend.app.routes.auth import auth_bp
+from backend.app.routes.courses import courses_bp
+from backend.app.routes.calendarEvents import calendar_events_bp
+from backend.app.routes.forums import forums_bp
+from backend.app.routes.discussionThreads import discussion_threads_bp
+from backend.app.routes.courseContent import course_content_bp
+from backend.app.routes.assignments import assignments_bp
+from backend.app.routes.reports import reports_bp
+from backend.app.routes.members import members_bp
 
 jwt = JWTManager()
 

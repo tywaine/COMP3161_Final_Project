@@ -32,7 +32,7 @@ const AppRoutes = () => {
           
           <Route path="/" element={<PrivateRoute><Courses /></PrivateRoute>} />
           <Route path="/courses" element={<PrivateRoute><Courses /></PrivateRoute>} />
-          <Route path="/course/:courseId" element={<PrivateRoute><CourseDetail /></PrivateRoute>} />
+          <Route path="/course/:courseCode" element={<PrivateRoute><CourseDetail /></PrivateRoute>} />
           <Route path="/forum" element={<PrivateRoute><div className="container animate-in"><h2>Forums</h2><p>Select a course to view its forum.</p></div></PrivateRoute>} />
           <Route path="/forum/:forumId" element={<PrivateRoute><ForumDetail /></PrivateRoute>} />
           <Route path="/thread/:threadId" element={<PrivateRoute><ThreadDetail /></PrivateRoute>} />

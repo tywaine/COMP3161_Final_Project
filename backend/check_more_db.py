@@ -1,12 +1,12 @@
-from app import create_app
-from app.db import get_db
+from backend.app import create_app
+from backend.app.db import get_db
 
 app = create_app()
 with app.app_context():
     conn = get_db()
     cursor = conn.cursor()
     
-    for table in ['Courses', 'Teaching', 'Enrollment', 'Sections', 'SectionItems', 'Assignments', 'Submissions']:
+    for table in ['Forums', 'DiscussionThreads', 'Posts', 'CalendarEvents']:
         print(f"--- {table} Table ---")
         try:
             cursor.execute(f"DESCRIBE {table}")

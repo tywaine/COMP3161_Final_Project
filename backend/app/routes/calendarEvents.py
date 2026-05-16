@@ -4,8 +4,8 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from mysql.connector import Error
 
-from app.db import get_db, close_db
-from app.utils.response import error_response, success_response
+from backend.app.db import get_db, close_db
+from backend.app.utils.response import error_response, success_response
 
 calendar_events_bp = Blueprint(
     "calendar_events",
@@ -24,7 +24,7 @@ def format_db_row(row):
             row[key] = float(value)
     return row
 
-def is_course_member(cursor, user_id, role, course_id):
+def is_course_member(cursor, user_id, role, course_code):
     if role == "admin":
         return True
 
@@ -33,9 +33,9 @@ def is_course_member(cursor, user_id, role, course_id):
             """
             SELECT lecturerId
             FROM Teaching
-            WHERE lecturerId = %s AND courseId = %s
+            WHERE lecturerId = %s AND courseCode = %s
             """,
-            (user_id, course_id)
+            (user_id, course_code)
         )
         return cursor.fetchone() is not None
 
@@ -44,18 +44,18 @@ def is_course_member(cursor, user_id, role, course_id):
             """
             SELECT studentId
             FROM Enrollment
-            WHERE studentId = %s AND courseId = %s
+            WHERE studentId = %s AND courseCode = %s
             """,
-            (user_id, course_id)
+            (user_id, course_code)
         )
         return cursor.fetchone() is not None
 
     return False
 
 
-@calendar_events_bp.route("/course/<int:course_id>", methods=["GET"])
+@calendar_events_bp.route("/course/<string:course_code>", methods=["GET"])
 @jwt_required()
-def get_calendar_events_for_course(course_id: int):
+def get_calendar_events_for_course(course_code: str):
     connection = None
     cursor = None
 
@@ -63,30 +63,31 @@ def get_calendar_events_for_course(course_id: int):
         claims = get_jwt()
         current_role = claims.get("role")
         current_user_id = int(get_jwt_identity())
+        course_code = course_code.upper().strip()
 
         connection = get_db()
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
             """
-            SELECT courseId, courseCode, courseName
+            SELECT courseCode, courseName
             FROM Courses
-            WHERE courseId = %s
+            WHERE courseCode = %s
             """,
-            (course_id,)
+            (course_code,)
         )
         course = cursor.fetchone()
 
         if not course:
             return error_response("Course not found", 404)
 
-        if not is_course_member(cursor, current_user_id, current_role, course_id):
+        if not is_course_member(cursor, current_user_id, current_role, course_code):
             return error_response("You are not allowed to view calendar events for this course", 403)
 
         cursor.execute(
             """
             SELECT ce.eventId,
-                   ce.courseId,
+                   ce.courseCode,
                    ce.createdByUserId,
                    u.fullName AS createdByName,
                    ce.title,
@@ -95,10 +96,10 @@ def get_calendar_events_for_course(course_id: int):
                    ce.createdAt
             FROM CalendarEvents ce
                      JOIN Users u ON ce.createdByUserId = u.userId
-            WHERE ce.courseId = %s
+            WHERE ce.courseCode = %s
             ORDER BY ce.eventDateTime
             """,
-            (course_id,)
+            (course_code,)
         )
         events = [format_db_row(row) for row in cursor.fetchall()]
 
@@ -158,7 +159,7 @@ def get_calendar_events_for_student_by_date(student_id):
         cursor.execute(
             """
             SELECT ce.eventId,
-                   ce.courseId,
+                   ce.courseCode,
                    c.courseName,
                    ce.createdByUserId,
                    u.fullName AS createdByName,
@@ -167,8 +168,8 @@ def get_calendar_events_for_student_by_date(student_id):
                    ce.eventDateTime,
                    ce.createdAt
             FROM Enrollment e
-                     JOIN CalendarEvents ce ON e.courseId = ce.courseId
-                     JOIN Courses c ON ce.courseId = c.courseId
+                     JOIN CalendarEvents ce ON e.courseCode = ce.courseCode
+                     JOIN Courses c ON ce.courseCode = c.courseCode
                      JOIN Users u ON ce.createdByUserId = u.userId
             WHERE e.studentId = %s
               AND DATE(ce.eventDateTime) = %s
@@ -197,9 +198,9 @@ def get_calendar_events_for_student_by_date(student_id):
         close_db(connection, cursor)
 
 
-@calendar_events_bp.route("/course/<int:course_id>", methods=["POST"])
+@calendar_events_bp.route("/course/<string:course_code>", methods=["POST"])
 @jwt_required()
-def create_calendar_event(course_id: int):
+def create_calendar_event(course_code: str):
     connection = None
     cursor = None
 
@@ -207,6 +208,7 @@ def create_calendar_event(course_id: int):
         claims = get_jwt()
         current_role = claims.get("role")
         current_user_id = int(get_jwt_identity())
+        course_code = course_code.upper().strip()
 
         data = request.get_json()
         if not data:
@@ -229,11 +231,11 @@ def create_calendar_event(course_id: int):
 
         cursor.execute(
             """
-            SELECT courseId, courseCode, courseName
+            SELECT courseCode, courseName
             FROM Courses
-            WHERE courseId = %s
+            WHERE courseCode = %s
             """,
-            (course_id,)
+            (course_code,)
         )
         course = cursor.fetchone()
 
@@ -249,9 +251,9 @@ def create_calendar_event(course_id: int):
                 """
                 SELECT lecturerId
                 FROM Teaching
-                WHERE lecturerId = %s AND courseId = %s
+                WHERE lecturerId = %s AND courseCode = %s
                 """,
-                (current_user_id, course_id)
+                (current_user_id, course_code)
             )
             allowed = cursor.fetchone() is not None
 
@@ -260,11 +262,11 @@ def create_calendar_event(course_id: int):
 
         cursor.execute(
             """
-            INSERT INTO CalendarEvents (courseId, createdByUserId, title, description, eventDateTime)
+            INSERT INTO CalendarEvents (courseCode, createdByUserId, title, description, eventDateTime)
             VALUES (%s, %s, %s, %s, %s)
             """,
             (
-                course_id,
+                course_code,
                 current_user_id,
                 title,
                 description,
@@ -280,7 +282,7 @@ def create_calendar_event(course_id: int):
             {
                 "event": {
                     "eventId": event_id,
-                    "courseId": course_id,
+                    "courseCode": course_code,
                     "createdByUserId": current_user_id,
                     "title": title,
                     "description": description,
@@ -316,9 +318,9 @@ def get_upcoming_events():
             query = """
                 SELECT ce.eventId, ce.title, ce.eventDateTime, c.courseCode
                 FROM CalendarEvents ce
-                JOIN Courses c ON ce.courseId = c.courseId
+                JOIN Courses c ON ce.courseCode = c.courseCode
                 WHERE ce.eventDateTime >= NOW()
-                ORDER BY ce.eventDateTime ASC
+                ORDER BY ce.eventDateTime
                 LIMIT 5
             """
             cursor.execute(query)
@@ -326,10 +328,10 @@ def get_upcoming_events():
             query = """
                 SELECT ce.eventId, ce.title, ce.eventDateTime, c.courseCode
                 FROM Enrollment e
-                JOIN CalendarEvents ce ON e.courseId = ce.courseId
-                JOIN Courses c ON ce.courseId = c.courseId
+                JOIN CalendarEvents ce ON e.courseCode = ce.courseCode
+                JOIN Courses c ON ce.courseCode = c.courseCode
                 WHERE e.studentId = %s AND ce.eventDateTime >= NOW()
-                ORDER BY ce.eventDateTime ASC
+                ORDER BY ce.eventDateTime
                 LIMIT 5
             """
             cursor.execute(query, (current_user_id,))
@@ -337,10 +339,10 @@ def get_upcoming_events():
             query = """
                 SELECT ce.eventId, ce.title, ce.eventDateTime, c.courseCode
                 FROM Teaching t
-                JOIN CalendarEvents ce ON t.courseId = ce.courseId
-                JOIN Courses c ON ce.courseId = c.courseId
+                JOIN CalendarEvents ce ON t.courseCode = ce.courseCode
+                JOIN Courses c ON ce.courseCode = c.courseCode
                 WHERE t.lecturerId = %s AND ce.eventDateTime >= NOW()
-                ORDER BY ce.eventDateTime ASC
+                ORDER BY ce.eventDateTime
                 LIMIT 5
             """
             cursor.execute(query, (current_user_id,))

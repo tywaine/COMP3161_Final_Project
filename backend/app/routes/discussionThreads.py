@@ -2,8 +2,8 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from mysql.connector import Error
 
-from app.db import get_db, close_db
-from app.utils.response import error_response, success_response
+from backend.app.db import get_db, close_db
+from backend.app.utils.response import error_response, success_response
 
 discussion_threads_bp = Blueprint(
     "discussion_threads",
@@ -17,12 +17,12 @@ def get_forum_course_and_membership(cursor, forum_id, user_id, role):
         """
         SELECT
             f.forumId,
-            f.courseId,
+            f.courseCode,
             f.title AS forumTitle,
             c.courseCode,
             c.courseName
         FROM Forums f
-        JOIN Courses c ON f.courseId = c.courseId
+        JOIN Courses c ON f.courseCode = c.courseCode
         WHERE f.forumId = %s
         """,
         (forum_id,)
@@ -40,9 +40,9 @@ def get_forum_course_and_membership(cursor, forum_id, user_id, role):
             """
             SELECT lecturerId
             FROM Teaching
-            WHERE lecturerId = %s AND courseId = %s
+            WHERE lecturerId = %s AND courseCode = %s
             """,
-            (user_id, forum["courseId"])
+            (user_id, forum["courseCode"])
         )
         return forum, cursor.fetchone() is not None
 
@@ -51,9 +51,9 @@ def get_forum_course_and_membership(cursor, forum_id, user_id, role):
             """
             SELECT studentId
             FROM Enrollment
-            WHERE studentId = %s AND courseId = %s
+            WHERE studentId = %s AND courseCode = %s
             """,
-            (user_id, forum["courseId"])
+            (user_id, forum["courseCode"])
         )
         return forum, cursor.fetchone() is not None
 
@@ -230,7 +230,7 @@ def get_posts_for_thread(thread_id):
                 dt.threadId,
                 dt.title AS threadTitle,
                 dt.forumId,
-                f.courseId
+                f.courseCode
             FROM DiscussionThreads dt
             JOIN Forums f ON dt.forumId = f.forumId
             WHERE dt.threadId = %s
@@ -251,9 +251,9 @@ def get_posts_for_thread(thread_id):
                 """
                 SELECT lecturerId
                 FROM Teaching
-                WHERE lecturerId = %s AND courseId = %s
+                WHERE lecturerId = %s AND courseCode = %s
                 """,
-                (current_user_id, thread["courseId"])
+                (current_user_id, thread["courseCode"])
             )
             allowed = cursor.fetchone() is not None
         elif current_role == "student":
@@ -261,9 +261,9 @@ def get_posts_for_thread(thread_id):
                 """
                 SELECT studentId
                 FROM Enrollment
-                WHERE studentId = %s AND courseId = %s
+                WHERE studentId = %s AND courseCode = %s
                 """,
-                (current_user_id, thread["courseId"])
+                (current_user_id, thread["courseCode"])
             )
             allowed = cursor.fetchone() is not None
 
@@ -336,7 +336,7 @@ def reply_to_thread(thread_id):
                 dt.threadId,
                 dt.title AS threadTitle,
                 dt.forumId,
-                f.courseId
+                f.courseCode
             FROM DiscussionThreads dt
             JOIN Forums f ON dt.forumId = f.forumId
             WHERE dt.threadId = %s
@@ -357,9 +357,9 @@ def reply_to_thread(thread_id):
                 """
                 SELECT lecturerId
                 FROM Teaching
-                WHERE lecturerId = %s AND courseId = %s
+                WHERE lecturerId = %s AND courseCode = %s
                 """,
-                (current_user_id, thread["courseId"])
+                (current_user_id, thread["courseCode"])
             )
             allowed = cursor.fetchone() is not None
         elif current_role == "student":
@@ -367,9 +367,9 @@ def reply_to_thread(thread_id):
                 """
                 SELECT studentId
                 FROM Enrollment
-                WHERE studentId = %s AND courseId = %s
+                WHERE studentId = %s AND courseCode = %s
                 """,
-                (current_user_id, thread["courseId"])
+                (current_user_id, thread["courseCode"])
             )
             allowed = cursor.fetchone() is not None
 

@@ -5,8 +5,8 @@ from mysql.connector import Error
 from datetime import datetime
 from decimal import Decimal
 
-from app.db import get_db, close_db
-from app.utils.response import error_response, success_response
+from backend.app.db import get_db, close_db
+from backend.app.utils.response import error_response, success_response
 
 courses_bp = Blueprint("courses", __name__, url_prefix="/api/courses")
 
@@ -63,7 +63,7 @@ def create_course():
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT courseId FROM Courses WHERE courseCode = %s",
+            "SELECT courseCode FROM Courses WHERE courseCode = %s",
             (course_code,)
         )
         if cursor.fetchone():
@@ -83,15 +83,13 @@ def create_course():
             """,
             (course_code, course_name, description, current_user_id)
         )
-        
-        new_course_id = cursor.lastrowid
 
         cursor.execute(
             """
-            INSERT INTO Teaching (lecturerId, courseId)
+            INSERT INTO Teaching (lecturerId, courseCode)
             VALUES (%s, %s)
             """,
-            (lecturer_id, new_course_id)
+            (lecturer_id, course_code)
         )
 
         connection.commit()
@@ -100,7 +98,6 @@ def create_course():
             "Course created successfully",
             {
                 "course": {
-                    "courseId": new_course_id,
                     "courseCode": course_code,
                     "courseName": course_name,
                     "description": description,
@@ -134,7 +131,6 @@ def get_all_courses():
         cursor.execute(
             """
             SELECT
-                c.courseId,
                 c.courseCode,
                 c.courseName,
                 c.description,
@@ -143,7 +139,7 @@ def get_all_courses():
                 t.lecturerId,
                 u.fullName AS lecturerName
             FROM Courses c
-            LEFT JOIN Teaching t ON c.courseId = t.courseId
+            LEFT JOIN Teaching t ON c.courseCode = t.courseCode
             LEFT JOIN Users u ON t.lecturerId = u.userId
             ORDER BY c.courseCode
             """
@@ -182,7 +178,6 @@ def get_courses_for_student(student_id):
         cursor.execute(
             """
             SELECT
-                c.courseId,
                 c.courseCode,
                 c.courseName,
                 c.description,
@@ -192,8 +187,8 @@ def get_courses_for_student(student_id):
                 t.lecturerId,
                 u.fullName AS lecturerName
             FROM Enrollment e
-            JOIN Courses c ON e.courseId = c.courseId
-            LEFT JOIN Teaching t ON c.courseId = t.courseId
+            JOIN Courses c ON e.courseCode = c.courseCode
+            LEFT JOIN Teaching t ON c.courseCode = t.courseCode
             LEFT JOIN Users u ON t.lecturerId = u.userId
             WHERE e.studentId = %s
             ORDER BY c.courseCode
@@ -237,7 +232,6 @@ def get_courses_for_lecturer(lecturer_id):
         cursor.execute(
             """
             SELECT
-                c.courseId,
                 c.courseCode,
                 c.courseName,
                 c.description,
@@ -245,7 +239,7 @@ def get_courses_for_lecturer(lecturer_id):
                 c.createdAt,
                 t.lecturerId
             FROM Teaching t
-            JOIN Courses c ON t.courseId = c.courseId
+            JOIN Courses c ON t.courseCode = c.courseCode
             WHERE t.lecturerId = %s
             ORDER BY c.courseCode
             """,
@@ -268,9 +262,9 @@ def get_courses_for_lecturer(lecturer_id):
         close_db(connection, cursor)
 
 
-@courses_bp.route("/<int:course_id>/register", methods=["POST"])
+@courses_bp.route("/<string:course_code>/register", methods=["POST"])
 @jwt_required()
-def register_for_course(course_id: int):
+def register_for_course(course_code: str):
     connection = None
     cursor = None
 
@@ -278,6 +272,8 @@ def register_for_course(course_id: int):
         claims = get_jwt()
         current_role = claims.get("role")
         current_user_id = int(get_jwt_identity())
+
+        course_code = course_code.upper().strip()
 
         if current_role != "student":
             return error_response("Only students can register for courses", 403)
@@ -294,11 +290,11 @@ def register_for_course(course_id: int):
 
         cursor.execute(
             """
-            SELECT courseId, courseCode, courseName
+            SELECT courseCode, courseName
             FROM Courses
-            WHERE courseId = %s
+            WHERE courseCode = %s
             """,
-            (course_id,)
+            (course_code,)
         )
         course = cursor.fetchone()
 
@@ -307,11 +303,11 @@ def register_for_course(course_id: int):
 
         cursor.execute(
             """
-            SELECT studentId, courseId
+            SELECT studentId, courseCode
             FROM Enrollment
-            WHERE studentId = %s AND courseId = %s
+            WHERE studentId = %s AND courseCode = %s
             """,
-            (current_user_id, course_id)
+            (current_user_id, course_code)
         )
         if cursor.fetchone():
             return error_response("Student is already registered for this course", 409)
@@ -331,10 +327,10 @@ def register_for_course(course_id: int):
 
         cursor.execute(
             """
-            INSERT INTO Enrollment (studentId, courseId)
+            INSERT INTO Enrollment (studentId, courseCode)
             VALUES (%s, %s)
             """,
-            (current_user_id, course_id)
+            (current_user_id, course_code)
         )
 
         connection.commit()
@@ -344,7 +340,6 @@ def register_for_course(course_id: int):
             {
                 "enrollment": {
                     "studentId": current_user_id,
-                    "courseId": course["courseId"],
                     "courseCode": course["courseCode"],
                     "courseName": course["courseName"]
                 }

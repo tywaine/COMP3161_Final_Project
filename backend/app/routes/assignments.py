@@ -4,8 +4,8 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from mysql.connector import Error
 
-from app.db import get_db, close_db
-from app.utils.response import error_response, success_response
+from backend.app.db import get_db, close_db
+from backend.app.utils.response import error_response, success_response
 
 assignments_bp = Blueprint(
     "assignments",
@@ -24,41 +24,41 @@ def format_db_row(row):
             row[key] = float(value)
     return row
 
-def is_assigned_lecturer(cursor, lecturer_id, course_id):
+def is_assigned_lecturer(cursor, lecturer_id, course_code):
     cursor.execute(
         """
         SELECT lecturerId
         FROM Teaching
-        WHERE lecturerId = %s AND courseId = %s
+        WHERE lecturerId = %s AND courseCode = %s
         """,
-        (lecturer_id, course_id)
+        (lecturer_id, course_code)
     )
     return cursor.fetchone() is not None
 
 
-def is_enrolled_student(cursor, student_id, course_id):
+def is_enrolled_student(cursor, student_id, course_code):
     cursor.execute(
         """
         SELECT studentId
         FROM Enrollment
-        WHERE studentId = %s AND courseId = %s
+        WHERE studentId = %s AND courseCode = %s
         """,
-        (student_id, course_id)
+        (student_id, course_code)
     )
     return cursor.fetchone() is not None
 
 
-def update_student_final_average(cursor, student_id, course_id):
+def update_student_final_average(cursor, student_id, course_code):
     cursor.execute(
         """
         SELECT ROUND(AVG(s.grade), 2) AS finalAverage
         FROM Submissions s
         JOIN Assignments a ON s.assignmentId = a.assignmentId
         WHERE s.studentId = %s
-          AND a.courseId = %s
+          AND a.courseCode = %s
           AND s.grade IS NOT NULL
         """,
-        (student_id, course_id)
+        (student_id, course_code)
     )
     result = cursor.fetchone()
     final_average = result["finalAverage"] if result and result["finalAverage"] is not None else None
@@ -67,17 +67,17 @@ def update_student_final_average(cursor, student_id, course_id):
         """
         UPDATE Enrollment
         SET finalGrade = %s
-        WHERE studentId = %s AND courseId = %s
+        WHERE studentId = %s AND courseCode = %s
         """,
-        (final_average, student_id, course_id)
+        (final_average, student_id, course_code)
     )
 
     return final_average
 
 
-@assignments_bp.route("/course/<int:course_id>", methods=["POST"])
+@assignments_bp.route("/course/<string:course_code>", methods=["POST"])
 @jwt_required()
-def create_assignment(course_id: int):
+def create_assignment(course_code: str):
     connection = None
     cursor = None
 
@@ -85,6 +85,7 @@ def create_assignment(course_id: int):
         claims = get_jwt()
         current_role = claims.get("role")
         current_user_id = int(get_jwt_identity())
+        course_code = course_code.upper().strip()
 
         if current_role != "lecturer":
             return error_response("Only lecturers can create assignments", 403)
@@ -110,24 +111,24 @@ def create_assignment(course_id: int):
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT courseId, courseCode, courseName FROM Courses WHERE courseId = %s",
-            (course_id,)
+            "SELECT courseCode, courseName FROM Courses WHERE courseCode = %s",
+            (course_code,)
         )
         course = cursor.fetchone()
 
         if not course:
             return error_response("Course not found", 404)
 
-        if not is_assigned_lecturer(cursor, current_user_id, course_id):
+        if not is_assigned_lecturer(cursor, current_user_id, course_code):
             return error_response("Only the assigned lecturer can create assignments for this course", 403)
 
         cursor.execute(
             """
-            INSERT INTO Assignments (courseId, title, description, dueDate, totalMarks, createdByUserId)
+            INSERT INTO Assignments (courseCode, title, description, dueDate, totalMarks, createdByUserId)
             VALUES (%s, %s, %s, %s, %s, %s)
             """,
             (
-                course_id,
+                course_code,
                 title,
                 description,
                 parsed_due_date,
@@ -144,7 +145,7 @@ def create_assignment(course_id: int):
             {
                 "assignment": {
                     "assignmentId": assignment_id,
-                    "courseId": course_id,
+                    "courseCode": course_code,
                     "title": title,
                     "description": description,
                     "dueDate": due_date,
@@ -165,9 +166,9 @@ def create_assignment(course_id: int):
         close_db(connection, cursor)
 
 
-@assignments_bp.route("/course/<int:course_id>", methods=["GET"])
+@assignments_bp.route("/course/<string:course_code>", methods=["GET"])
 @jwt_required()
-def get_assignments_for_course(course_id: int):
+def get_assignments_for_course(course_code: str):
     connection = None
     cursor = None
 
@@ -180,8 +181,8 @@ def get_assignments_for_course(course_id: int):
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT courseId, courseCode, courseName FROM Courses WHERE courseId = %s",
-            (course_id,)
+            "SELECT courseCode, courseCode, courseName FROM Courses WHERE courseCode = %s",
+            (course_code,)
         )
         course = cursor.fetchone()
 
@@ -193,9 +194,9 @@ def get_assignments_for_course(course_id: int):
         if current_role == "admin":
             allowed = True
         elif current_role == "lecturer":
-            allowed = is_assigned_lecturer(cursor, current_user_id, course_id)
+            allowed = is_assigned_lecturer(cursor, current_user_id, course_code)
         elif current_role == "student":
-            allowed = is_enrolled_student(cursor, current_user_id, course_id)
+            allowed = is_enrolled_student(cursor, current_user_id, course_code)
 
         if not allowed:
             return error_response("You are not allowed to view assignments for this course", 403)
@@ -203,7 +204,7 @@ def get_assignments_for_course(course_id: int):
         cursor.execute(
             """
             SELECT a.assignmentId,
-                   a.courseId,
+                   a.courseCode,
                    a.title,
                    a.description,
                    a.dueDate,
@@ -212,10 +213,10 @@ def get_assignments_for_course(course_id: int):
                    u.fullName AS createdByName
             FROM Assignments a
                      JOIN Users u ON a.createdByUserId = u.userId
-            WHERE a.courseId = %s
+            WHERE a.courseCode = %s
             ORDER BY a.dueDate, a.assignmentId
             """,
-            (course_id,)
+            (course_code,)
         )
         assignments = [format_db_row(row) for row in cursor.fetchall()]
 
@@ -268,7 +269,7 @@ def submit_assignment(assignment_id):
             """
             SELECT
                 a.assignmentId,
-                a.courseId,
+                a.courseCode,
                 a.title,
                 a.dueDate
             FROM Assignments a
@@ -281,7 +282,7 @@ def submit_assignment(assignment_id):
         if not assignment:
             return error_response("Assignment not found", 404)
 
-        if not is_enrolled_student(cursor, current_user_id, assignment["courseId"]):
+        if not is_enrolled_student(cursor, current_user_id, assignment["courseCode"]):
             return error_response("Only enrolled students can submit assignments for this course", 403)
 
         cursor.execute(
@@ -350,7 +351,7 @@ def get_submissions_for_assignment(assignment_id):
             """
             SELECT
                 a.assignmentId,
-                a.courseId,
+                a.courseCode,
                 a.title
             FROM Assignments a
             WHERE a.assignmentId = %s
@@ -364,7 +365,7 @@ def get_submissions_for_assignment(assignment_id):
 
         allowed = False
         if current_role == "lecturer":
-            allowed = is_assigned_lecturer(cursor, current_user_id, assignment["courseId"])
+            allowed = is_assigned_lecturer(cursor, current_user_id, assignment["courseCode"])
         elif current_role == "admin":
             allowed = True
 
@@ -442,7 +443,7 @@ def grade_submission(submission_id):
                 s.submissionId,
                 s.studentId,
                 s.assignmentId,
-                a.courseId,
+                a.courseCode,
                 a.totalMarks
             FROM Submissions s
             JOIN Assignments a ON s.assignmentId = a.assignmentId
@@ -455,7 +456,7 @@ def grade_submission(submission_id):
         if not submission:
             return error_response("Submission not found", 404)
 
-        if not is_assigned_lecturer(cursor, current_user_id, submission["courseId"]):
+        if not is_assigned_lecturer(cursor, current_user_id, submission["courseCode"]):
             return error_response("Only the assigned lecturer can grade submissions for this course", 403)
 
         try:
@@ -478,7 +479,7 @@ def grade_submission(submission_id):
         final_average = update_student_final_average(
             cursor,
             submission["studentId"],
-            submission["courseId"]
+            submission["courseCode"]
         )
 
         connection.commit()
@@ -523,9 +524,9 @@ def get_upcoming_assignments():
             query = """
                 SELECT a.assignmentId, a.title, a.dueDate, c.courseCode
                 FROM Assignments a
-                JOIN Courses c ON a.courseId = c.courseId
+                JOIN Courses c ON a.courseCode = c.courseCode
                 WHERE a.dueDate >= NOW()
-                ORDER BY a.dueDate ASC
+                ORDER BY a.dueDate
                 LIMIT 5
             """
             cursor.execute(query)
@@ -533,10 +534,10 @@ def get_upcoming_assignments():
             query = """
                 SELECT a.assignmentId, a.title, a.dueDate, c.courseCode
                 FROM Enrollment e
-                JOIN Assignments a ON e.courseId = a.courseId
-                JOIN Courses c ON a.courseId = c.courseId
+                JOIN Assignments a ON e.courseCode = a.courseCode
+                JOIN Courses c ON a.courseCode = c.courseCode
                 WHERE e.studentId = %s AND a.dueDate >= NOW()
-                ORDER BY a.dueDate ASC
+                ORDER BY a.dueDate
                 LIMIT 5
             """
             cursor.execute(query, (current_user_id,))
@@ -544,10 +545,10 @@ def get_upcoming_assignments():
             query = """
                 SELECT a.assignmentId, a.title, a.dueDate, c.courseCode
                 FROM Teaching t
-                JOIN Assignments a ON t.courseId = a.courseId
-                JOIN Courses c ON a.courseId = c.courseId
+                JOIN Assignments a ON t.courseCode = a.courseCode
+                JOIN Courses c ON a.courseCode = c.courseCode
                 WHERE t.lecturerId = %s AND a.dueDate >= NOW()
-                ORDER BY a.dueDate ASC
+                ORDER BY a.dueDate
                 LIMIT 5
             """
             cursor.execute(query, (current_user_id,))
@@ -562,15 +563,16 @@ def get_upcoming_assignments():
         close_db(connection, cursor)
 
 
-@assignments_bp.route("/course/<int:course_id>/my-submissions", methods=["GET"])
+@assignments_bp.route("/course/<string:course_code>/my-submissions", methods=["GET"])
 @jwt_required()
-def get_my_submissions(course_id: int):
+def get_my_submissions(course_code: str):
     connection = None
     cursor = None
     try:
         claims = get_jwt()
         current_role = claims.get("role")
         current_user_id = int(get_jwt_identity())
+        course_code = course_code.upper().strip()
 
         if current_role != "student":
             return error_response("Only students can view their own submissions", 403)
@@ -583,9 +585,9 @@ def get_my_submissions(course_id: int):
             SELECT s.submissionId, s.assignmentId, s.submittedAt, s.grade, s.feedback
             FROM Submissions s
             JOIN Assignments a ON s.assignmentId = a.assignmentId
-            WHERE s.studentId = %s AND a.courseId = %s
+            WHERE s.studentId = %s AND a.courseCode = %s
             """,
-            (current_user_id, course_id)
+            (current_user_id, course_code)
         )
         submissions = [format_db_row(row) for row in cursor.fetchall()]
 

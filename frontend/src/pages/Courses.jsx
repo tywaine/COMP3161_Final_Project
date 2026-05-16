@@ -16,7 +16,7 @@ const Courses = () => {
   const [newCourse, setNewCourse] = useState({ courseCode: '', courseName: '', description: '', lecturerId: '' });
 
   useEffect(() => {
-    fetchCourses();
+    void fetchCourses();
   }, [user]);
 
   useEffect(() => {
@@ -153,7 +153,7 @@ const Courses = () => {
           </div>
         ) : (
           filteredCourses.map(course => (
-            <Link to={`/course/${course.courseId}`} key={course.courseId} style={{ textDecoration: 'none' }}>
+            <Link to={`/course/${course.courseCode}`} key={course.courseCode} style={{ textDecoration: 'none' }}>
               <div className="glass-panel" style={{ height: '100%', transition: 'all 0.3s ease', cursor: 'pointer' }}>
                 <div className="flex-between" style={{ marginBottom: '1.25rem' }}>
                   <div style={{ 
