@@ -11,6 +11,8 @@ import Courses from './pages/Courses';
 import CourseDetail from './pages/CourseDetail';
 import ForumDetail from './pages/ForumDetail';
 import ThreadDetail from './pages/ThreadDetail';
+import Reports from './pages/Reports';
+import CalendarPage from './pages/CalendarPage';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -30,13 +32,14 @@ const AppRoutes = () => {
           <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
           <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
           
-          <Route path="/" element={<PrivateRoute><Courses /></PrivateRoute>} />
+          <Route path="/" element={<PrivateRoute><Courses dashboardMode={true} /></PrivateRoute>} />
           <Route path="/courses" element={<PrivateRoute><Courses /></PrivateRoute>} />
           <Route path="/course/:courseCode" element={<PrivateRoute><CourseDetail /></PrivateRoute>} />
           <Route path="/forum" element={<PrivateRoute><div className="container animate-in"><h2>Forums</h2><p>Select a course to view its forum.</p></div></PrivateRoute>} />
           <Route path="/forum/:forumId" element={<PrivateRoute><ForumDetail /></PrivateRoute>} />
           <Route path="/thread/:threadId" element={<PrivateRoute><ThreadDetail /></PrivateRoute>} />
-          <Route path="/calendar" element={<PrivateRoute><div className="container animate-in"><h2>Calendar</h2><p>Coming soon...</p></div></PrivateRoute>} />
+          <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
+          <Route path="/calendar" element={<PrivateRoute><CalendarPage /></PrivateRoute>} />
           
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

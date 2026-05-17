@@ -14,17 +14,27 @@ const ForumDetail = () => {
     fetchThreads();
   }, [forumId]);
 
-  const fetchThreads = async () => {
-    const res = await api.get(`/threads/forum/${forumId}`);
-    setThreads(res.data.threads || []);
+    const fetchThreads = async () => {
+    try {
+      const res = await api.get(`/discussion-threads/forum/${forumId}`);
+      setThreads(res.data.threads || []);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleCreateThread = async (e) => {
     e.preventDefault();
-    await api.post(`/threads/forum/${forumId}`, newThread);
-    setNewThread({ title: '', content: '' });
-    setShowCreate(false);
-    fetchThreads();
+
+    try {
+      await api.post(`/discussion-threads/forum/${forumId}`, newThread);
+      setNewThread({ title: '', content: '' });
+      setShowCreate(false);
+      await fetchThreads();
+    } catch (err) {
+      alert('Failed to create thread');
+      console.error(err);
+    }
   };
 
   return (
