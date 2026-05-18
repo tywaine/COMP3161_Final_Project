@@ -181,7 +181,7 @@ def get_assignments_for_course(course_code: str):
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT courseCode, courseCode, courseName FROM Courses WHERE courseCode = %s",
+            "SELECT courseCode, courseName FROM Courses WHERE courseCode = %s",
             (course_code,)
         )
         course = cursor.fetchone()
