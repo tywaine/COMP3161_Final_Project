@@ -6,7 +6,7 @@ fake = Faker()
 random.seed(42)
 Faker.seed(42)
 
-OUTPUT_FILE = "../../sql/insert_data.sql"
+OUTPUT_FILE = "../../../sql/insert_data.sql"
 
 NUM_STUDENTS = 100_000
 NUM_COURSES = 200

@@ -26,7 +26,7 @@ checks = [
     (
         "c. No student can do more than 6 courses",
         """
-        SELECT COALESCE(MAX(courseCount), 0) AS value
+        SELECT MAX(courseCount) AS value
         FROM (
             SELECT COUNT(*) AS courseCount
             FROM Enrollment
@@ -39,7 +39,7 @@ checks = [
     (
         "d. Each student is enrolled in at least 3 courses",
         """
-        SELECT COALESCE(MIN(courseCount), 0) AS value
+        SELECT MIN(courseCount) AS value
         FROM (
             SELECT COUNT(e.courseCode) AS courseCount
             FROM Students s
@@ -53,7 +53,7 @@ checks = [
     (
         "e. Each course has at least 10 members",
         """
-        SELECT COALESCE(MIN(memberCount), 0) AS value
+        SELECT MIN(memberCount) AS value
         FROM (
             SELECT COUNT(DISTINCT e.studentId) + COUNT(DISTINCT t.lecturerId) AS memberCount
             FROM Courses c
@@ -68,7 +68,7 @@ checks = [
     (
         "f. No lecturer teaches more than 5 courses",
         """
-        SELECT COALESCE(MAX(courseCount), 0) AS value
+        SELECT MAX(courseCount) AS value
         FROM (
             SELECT COUNT(*) AS courseCount
             FROM Teaching
@@ -81,7 +81,7 @@ checks = [
     (
         "g. Each lecturer teaches at least 1 course",
         """
-        SELECT COALESCE(MIN(courseCount), 0) AS value
+        SELECT MIN(courseCount) AS value
         FROM (
             SELECT COUNT(t.courseCode) AS courseCount
             FROM Lecturers l
