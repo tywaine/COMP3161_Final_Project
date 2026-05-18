@@ -4,8 +4,8 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from mysql.connector import Error
 
-from backend.app.db import get_db, close_db
-from backend.app.utils.response import error_response, success_response
+from app.db import get_db, close_db
+from app.utils.response import error_response, success_response
 
 assignments_bp = Blueprint(
     "assignments",

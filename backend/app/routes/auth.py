@@ -3,8 +3,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token
 from mysql.connector import Error
 
-from backend.app.db import get_db, close_db
-from backend.app.utils.response import error_response, success_response
+from app.db import get_db, close_db
+from app.utils.response import error_response, success_response
 from datetime import timedelta
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")

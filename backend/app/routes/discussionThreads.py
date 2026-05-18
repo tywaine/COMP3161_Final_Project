@@ -2,14 +2,27 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from mysql.connector import Error
 
-from backend.app.db import get_db, close_db
-from backend.app.utils.response import error_response, success_response
+from app.db import get_db, close_db
+from app.utils.response import error_response, success_response
+from datetime import datetime
+from decimal import Decimal
 
 discussion_threads_bp = Blueprint(
     "discussion_threads",
     __name__,
     url_prefix="/api/discussion-threads"
 )
+
+def format_db_row(row):
+    """Helper to convert database row values to JSON-serializable formats."""
+    if not row:
+        return row
+    for key, value in row.items():
+        if isinstance(value, datetime):
+            row[key] = value.strftime('%Y-%m-%d %H:%M:%S')
+        elif isinstance(value, Decimal):
+            row[key] = float(value)
+    return row
 
 
 def get_forum_course_and_membership(cursor, forum_id, user_id, role):
@@ -95,7 +108,7 @@ def get_threads_for_forum(forum_id):
                 dt.createdByUserId,
                 u.fullName AS createdByName,
                 dt.title,
-                DATE_FORMAT(dt.createdAt, '%Y-%m-%d %H:%i:%s') AS createdAt,
+                dt.createdAt AS createdAt,
                 (
                     SELECT COUNT(*)
                     FROM Posts p
@@ -109,6 +122,8 @@ def get_threads_for_forum(forum_id):
             (forum_id,)
         )
         threads = cursor.fetchall()
+        threads = [format_db_row(thread) for thread in threads]
+        forum = format_db_row(forum)
 
         return success_response(
             "Discussion threads retrieved successfully",
@@ -278,7 +293,7 @@ def get_posts_for_thread(thread_id):
                    u.fullName,
                    p.parentPostId,
                    p.content,
-                   DATE_FORMAT(p.createdAt, '%Y-%m-%d %H:%i:%s') AS createdAt
+                   p.createdAt AS createdAt
             FROM Posts p
                      JOIN Users u ON p.userId = u.userId
             WHERE p.threadId = %s
@@ -287,6 +302,8 @@ def get_posts_for_thread(thread_id):
             (thread_id,)
         )
         posts = cursor.fetchall()
+        posts = [format_db_row(post) for post in posts]
+        thread = format_db_row(thread)
 
         return success_response(
             "Thread posts retrieved successfully",

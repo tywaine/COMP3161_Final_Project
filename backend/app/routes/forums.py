@@ -2,10 +2,23 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from mysql.connector import Error
 
-from backend.app.db import get_db, close_db
-from backend.app.utils.response import error_response, success_response
+from app.db import get_db, close_db
+from app.utils.response import error_response, success_response
+from datetime import datetime
+from decimal import Decimal
 
 forums_bp = Blueprint("forums", __name__, url_prefix="/api/forums")
+
+def format_db_row(row):
+    """Helper to convert database row values to JSON-serializable formats."""
+    if not row:
+        return row
+    for key, value in row.items():
+        if isinstance(value, datetime):
+            row[key] = value.strftime('%Y-%m-%d %H:%M:%S')
+        elif isinstance(value, Decimal):
+            row[key] = float(value)
+    return row
 
 
 def is_course_member(cursor, user_id, role, course_code):
@@ -70,21 +83,23 @@ def get_forums_for_course(course_code: str):
 
         cursor.execute(
             """
-            SELECT
-                f.forumId,
-                f.courseCode,
-                f.title,
-                f.createdByUserId,
-                u.fullName AS createdByName,
-                DATE_FORMAT(f.createdAt, '%Y-%m-%d %H:%i:%s') AS createdAt
+            SELECT f.forumId,
+                   f.courseCode,
+                   f.title,
+                   f.createdByUserId,
+                   u.fullName AS createdByName,
+                   f.createdAt
             FROM Forums f
-            JOIN Users u ON f.createdByUserId = u.userId
+                     JOIN Users u ON f.createdByUserId = u.userId
             WHERE f.courseCode = %s
             ORDER BY f.createdAt DESC
             """,
             (course_code,)
         )
+
         forums = cursor.fetchall()
+        forums = [format_db_row(forum) for forum in forums]
+        course = format_db_row(course)
 
         return success_response(
             "Forums retrieved successfully",
@@ -94,11 +109,15 @@ def get_forums_for_course(course_code: str):
             }
         )
 
+
     except Error as e:
-        return error_response("Database error", 500, e)
+        print("DATABASE ERROR:", e)
+        return error_response("Database error", 500, str(e))
+
 
     except Exception as e:
-        return error_response("Server error", 500, e)
+        print("SERVER ERROR:", e)
+        return error_response("Server error", 500, str(e))
 
     finally:
         close_db(connection, cursor)

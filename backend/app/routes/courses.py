@@ -5,8 +5,8 @@ from mysql.connector import Error
 from datetime import datetime
 from decimal import Decimal
 
-from backend.app.db import get_db, close_db
-from backend.app.utils.response import error_response, success_response
+from app.db import get_db, close_db
+from app.utils.response import error_response, success_response
 
 courses_bp = Blueprint("courses", __name__, url_prefix="/api/courses")
 
