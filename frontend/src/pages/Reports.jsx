@@ -77,7 +77,7 @@ const Reports = () => {
           <BarChart3 color="var(--primary)" /> Reports
         </h1>
         <p style={{ color: 'var(--text-muted)' }}>
-          View database report summaries generated from your SQL views.
+          View database report summaries
         </p>
       </header>
 

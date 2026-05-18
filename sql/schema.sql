@@ -2,10 +2,7 @@ DROP DATABASE IF EXISTS course_management;
 CREATE DATABASE course_management;
 USE course_management;
 
--- =========================
 -- User and role tables
--- =========================
-
 CREATE TABLE Users (
     userId INT PRIMARY KEY,
     fullName VARCHAR(150) NOT NULL,
@@ -36,10 +33,7 @@ CREATE TABLE Admins (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- =========================
 -- Course tables
--- =========================
-
 CREATE TABLE Courses (
     courseCode VARCHAR(8) PRIMARY KEY,
     courseName VARCHAR(100) NOT NULL,
@@ -72,10 +66,7 @@ CREATE TABLE Teaching (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- =========================
 -- Calendar and forums
--- =========================
-
 CREATE TABLE CalendarEvents (
     eventId INT AUTO_INCREMENT PRIMARY KEY,
     courseCode VARCHAR(8) NOT NULL,
@@ -129,10 +120,8 @@ CREATE TABLE Posts (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- =========================
--- Course content
--- =========================
 
+-- Course content
 CREATE TABLE Sections (
     sectionId INT AUTO_INCREMENT PRIMARY KEY,
     courseCode VARCHAR(8) NOT NULL,
@@ -160,10 +149,7 @@ CREATE TABLE SectionItems (
         ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
--- =========================
 -- Assignments and submissions
--- =========================
-
 CREATE TABLE Assignments (
     assignmentId INT AUTO_INCREMENT PRIMARY KEY,
     courseCode VARCHAR(8) NOT NULL,
@@ -194,9 +180,8 @@ CREATE TABLE Submissions (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- =========================
+
 -- Helpful indexes
--- =========================
 
 -- Users
 CREATE INDEX idx_users_role ON Users(role);
