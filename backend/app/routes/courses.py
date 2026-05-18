@@ -78,6 +78,18 @@ def create_course():
 
         cursor.execute(
             """
+            SELECT COUNT(*) AS courseCount
+            FROM Teaching
+            WHERE lecturerId = %s
+            """,
+            (lecturer_id,)
+        )
+        course_count_result = cursor.fetchone()
+        if course_count_result["courseCount"] >= 5:
+            return error_response("Lecturer is already teaching 5 courses", 400)
+
+        cursor.execute(
+            """
             INSERT INTO Courses (courseCode, courseName, description, createdByAdminId)
             VALUES (%s, %s, %s, %s)
             """,
